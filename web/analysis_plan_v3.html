@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRS Analysis Plan — v3 Mindmap</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #242836; --surface3: #2e3345;
+    --border: #2e3345; --border-light: #3a3f54;
+    --text: #e1e4ed; --muted: #8b90a0; --dim: #5a5f73;
+    --green: #34d399; --green-bg: rgba(52,211,153,0.10); --green-line: rgba(52,211,153,0.5);
+    --accent: #6c8cff; --accent-bg: rgba(108,140,255,0.10); --accent-line: rgba(108,140,255,0.5);
+    --yellow: #fbbf24; --yellow-bg: rgba(251,191,36,0.10); --yellow-line: rgba(251,191,36,0.5);
+    --red: #f87171; --red-bg: rgba(248,113,113,0.10); --red-line: rgba(248,113,113,0.3);
+    --dim-line: rgba(90,95,115,0.3);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--text); overflow:hidden; height:100vh; }
+
+  /* Layout */
+  .app { display:flex; height:100vh; flex-direction:column; }
+  .topbar { padding:12px 20px; border-bottom:1px solid var(--border); background:var(--surface); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+  .topbar-left { display:flex; align-items:center; gap:14px; }
+  .topbar-left h1 { font-size:14px; font-weight:600; }
+  .topbar-rq { font-size:11px; color:var(--muted); }
+  .topbar-right { display:flex; gap:3px; }
+  .tab { padding:5px 12px; border-radius:6px; font-size:11px; font-weight:500; cursor:pointer; color:var(--muted); border:1px solid transparent; transition:0.15s; }
+  .tab:hover { color:var(--text); background:var(--surface2); }
+  .tab.active { color:var(--accent); background:var(--accent-bg); border-color:rgba(108,140,255,0.2); }
+  .gp-bar { padding:8px 20px; border-bottom:1px solid var(--border); background:var(--surface); display:flex; align-items:center; gap:6px; font-size:10px; flex-shrink:0; }
+  .gp-label { color:var(--yellow); font-weight:600; }
+  .gp-step { padding:2px 6px; border-radius:3px; font-weight:500; }
+  .gp-step.done { background:var(--green-bg); color:var(--green); }
+  .gp-step.now { background:var(--yellow-bg); color:var(--yellow); }
+  .gp-step.pending { background:var(--surface2); color:var(--dim); }
+  .gp-arrow { color:var(--dim); }
+
+  /* Main area = mindmap + detail panel */
+  .main-area { display:flex; flex:1; overflow:hidden; }
+  .mindmap-area { flex:1; overflow:auto; padding:30px; position:relative; }
+  .detail-panel { width:0; overflow:hidden; border-left:1px solid var(--border); background:var(--surface); transition:width 0.25s ease; flex-shrink:0; }
+  .detail-panel.open { width:400px; }
+  .detail-inner { width:400px; padding:20px; overflow-y:auto; height:100%; }
+  .detail-close { position:absolute; top:12px; right:12px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:4px 8px; border-radius:4px; }
+  .detail-close:hover { background:var(--surface2); color:var(--text); }
+  .detail-header { margin-bottom:16px; position:relative; padding-right:30px; }
+  .detail-header h3 { font-size:14px; font-weight:600; margin-bottom:4px; }
+  .detail-header p { font-size:11px; color:var(--muted); }
+  .detail-section { margin-bottom:16px; }
+  .detail-section h4 { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--dim); margin-bottom:8px; }
+  .detail-section p { font-size:12px; color:var(--muted); line-height:1.6; }
+  .detail-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border); font-size:11px; }
+  .detail-row span:first-child { color:var(--dim); }
+  .detail-row span:last-child { color:var(--text); font-weight:500; }
+  .detail-note { padding:10px 12px; background:var(--surface2); border-radius:6px; font-size:11px; color:var(--muted); line-height:1.6; font-style:italic; border-left:3px solid var(--accent); }
+  .detail-abandon { padding:10px 12px; background:var(--red-bg); border-radius:6px; font-size:11px; color:var(--red); line-height:1.6; border-left:3px solid var(--red); }
+  .detail-checks { display:flex; flex-direction:column; gap:4px; }
+  .detail-check { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .detail-check.pass { color:var(--green); }
+  .detail-check.warn { color:var(--yellow); }
+  .detail-check.fail { color:var(--red); }
+  .badge { display:inline-flex; padding:2px 7px; border-radius:8px; font-size:9px; font-weight:600; }
+  .badge-done { background:var(--green-bg); color:var(--green); }
+  .badge-exploring { background:var(--accent-bg); color:var(--accent); }
+  .badge-abandoned { background:var(--red-bg); color:var(--red); }
+  .badge-planned { background:var(--surface3); color:var(--dim); }
+  .badge-running { background:var(--yellow-bg); color:var(--yellow); }
+  .compare-float-btn { margin-top:12px; padding:7px 14px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid var(--accent); background:var(--accent-bg); color:var(--accent); width:100%; transition:0.15s; }
+  .compare-float-btn:hover { background:rgba(108,140,255,0.2); }
+
+  /* ===== MINDMAP ===== */
+  .mindmap { display:flex; flex-direction:column; align-items:center; min-width:fit-content; }
+
+  /* Node — all nodes same size */
+  .node {
+    position:relative;
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 16px;
+    border-radius:10px;
+    border:2px solid var(--border);
+    background:var(--surface);
+    cursor:pointer;
+    transition:all 0.2s;
+    font-size:12px;
+    font-weight:500;
+    white-space:nowrap;
+    user-select:none;
+    min-width:140px;
+    justify-content:center;
+  }
+  .node:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,0,0,0.3); }
+  .node.selected { box-shadow:0 0 0 2px var(--accent), 0 4px 20px rgba(108,140,255,0.2); }
+  .node .dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .node .label { font-size:12px; }
+  .node .sub { font-size:10px; color:var(--muted); font-weight:400; margin-left:4px; }
+  .node .expand-btn { font-size:10px; color:var(--dim); margin-left:4px; transition:transform 0.2s; }
+  .node .expand-btn.collapsed { transform:rotate(-90deg); }
+
+  /* Status-specific node styles */
+  .node.golden { border-color:var(--green-line); }
+  .node.golden .dot { background:var(--green); box-shadow:0 0 6px rgba(52,211,153,0.4); }
+  .node.exploring { border-color:var(--accent-line); }
+  .node.exploring .dot { background:var(--accent); box-shadow:0 0 6px rgba(108,140,255,0.4); }
+  .node.running { border-color:var(--yellow-line); animation:glow 2s infinite; }
+  .node.running .dot { background:var(--yellow); box-shadow:0 0 6px rgba(251,191,36,0.4); }
+  .node.abandoned { border-color:var(--red-line); opacity:0.55; border-style:dashed; }
+  .node.abandoned .dot { background:var(--red); opacity:0.5; }
+  .node.planned { border-color:var(--dim-line); opacity:0.45; }
+  .node.planned .dot { background:var(--dim); }
+  @keyframes glow { 0%,100% { box-shadow:0 0 0 0 rgba(251,191,36,0.3); } 50% { box-shadow:0 0 0 6px rgba(251,191,36,0); } }
+
+  /* Connector lines */
+  .connector { display:flex; justify-content:center; position:relative; }
+  .vline { width:2px; height:24px; }
+  .vline.green { background:var(--green-line); }
+  .vline.accent { background:var(--accent-line); }
+  .vline.yellow { background:var(--yellow-line); }
+  .vline.red { background:var(--red-line); }
+  .vline.dim { background:var(--dim-line); }
+
+  /* Fork container */
+  .fork-row { display:flex; align-items:flex-start; gap:0; position:relative; }
+  .fork-branch { display:flex; flex-direction:column; align-items:center; min-width:180px; }
+
+  /* Horizontal connector for forks */
+  .hconnector { display:flex; align-items:flex-start; justify-content:center; position:relative; height:24px; }
+  .hconnector::before {
+    content:'';
+    position:absolute;
+    top:0;
+    height:12px;
+    border-bottom:2px solid var(--border-light);
+  }
+  .hconnector .drop { position:absolute; top:12px; width:2px; height:12px; background:var(--border-light); }
+
+  /* Fork label */
+  .fork-label { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--accent); background:var(--accent-bg); padding:3px 8px; border-radius:4px; margin-bottom:2px; display:flex; align-items:center; gap:4px; }
+
+  /* Children container */
+  .children { display:flex; flex-direction:column; align-items:center; }
+  .children.collapsed { display:none; }
+
+  /* Rewind badge on node */
+  .rewind-badge { position:absolute; top:-8px; right:-8px; background:var(--yellow); color:#000; font-size:8px; font-weight:700; padding:1px 5px; border-radius:8px; }
+
+  /* ===== COMPARE OVERLAY ===== */
+  .compare-overlay { position:fixed; top:0; right:0; bottom:0; width:460px; background:var(--surface); border-left:1px solid var(--border); z-index:200; transform:translateX(100%); transition:transform 0.25s ease; box-shadow:-8px 0 30px rgba(0,0,0,0.5); display:flex; flex-direction:column; }
+  .compare-overlay.open { transform:translateX(0); }
+  .cmp-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .cmp-header h3 { font-size:13px; font-weight:600; }
+  .cmp-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:4px 8px; border-radius:4px; }
+  .cmp-close:hover { background:var(--surface2); color:var(--text); }
+  .cmp-body { flex:1; overflow-y:auto; padding:16px; }
+  .cmp-cols { display:flex; gap:8px; margin-bottom:14px; }
+  .cmp-col { flex:1; padding:10px; border-radius:6px; border:1px solid var(--border); }
+  .cmp-col.win { border-color:rgba(52,211,153,0.3); background:var(--green-bg); }
+  .cmp-col h4 { font-size:11px; font-weight:600; margin-bottom:2px; }
+  .cmp-col p { font-size:10px; color:var(--muted); }
+  .cmp-table { width:100%; border-collapse:collapse; font-size:11px; }
+  .cmp-table th { text-align:left; padding:7px 8px; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--dim); border-bottom:1px solid var(--border); }
+  .cmp-table td { padding:7px 8px; border-bottom:1px solid var(--border); color:var(--muted); }
+  .cmp-table .w { color:var(--green); font-weight:500; }
+  .cmp-table .l { color:var(--red); }
+  .cmp-reason { padding:10px; background:var(--accent-bg); border-radius:6px; border:1px solid rgba(108,140,255,0.15); font-size:11px; color:var(--muted); line-height:1.6; margin-top:12px; }
+  .cmp-reason strong { color:var(--accent); }
+
+  /* Timeline/Table views reuse */
+  .view { display:none; }
+  .view.active { display:flex; flex:1; overflow:hidden; }
+  .view-scroll { flex:1; overflow:auto; padding:24px; }
+  .tl-event { display:flex; gap:12px; padding-bottom:14px; position:relative; }
+  .tl-event::before { content:''; position:absolute; left:11px; top:24px; bottom:0; width:1px; background:var(--border); }
+  .tl-event:last-child::before { display:none; }
+  .tl-marker { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; z-index:1; border:1px solid var(--border); background:var(--surface2); }
+  .tl-marker.done { background:var(--green-bg); border-color:var(--green); }
+  .tl-marker.fork { background:var(--accent-bg); border-color:var(--accent); }
+  .tl-marker.abandon { background:var(--red-bg); border-color:var(--red); }
+  .tl-marker.rewind { background:var(--yellow-bg); border-color:var(--yellow); }
+  .tl-body h4 { font-size:12px; font-weight:600; margin-bottom:1px; }
+  .tl-body p { font-size:11px; color:var(--muted); line-height:1.4; }
+  .tl-time { font-size:9px; color:var(--dim); margin-top:2px; }
+  .tl-tag { display:inline-block; padding:1px 5px; border-radius:3px; font-size:8px; font-weight:500; }
+  .tl-tag.auto { background:var(--surface3); color:var(--dim); }
+  .tl-tag.user { background:var(--green-bg); color:var(--green); }
+  .tl-current { background:var(--accent-bg); border-radius:6px; padding:8px 10px; border-left:2px solid var(--accent); }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>📊 Analysis Plan</h1>
+      <span class="topbar-rq">Physical activity → ADL disability, HRS wave 12, adults 60+</span>
+    </div>
+    <div class="topbar-right">
+      <div class="tab active" onclick="switchView('mindmap')">Paths</div>
+      <div class="tab" onclick="switchView('timeline')">Timeline</div>
+    </div>
+  </div>
+  <div class="gp-bar">
+    <span class="gp-label">⭐ Golden Path</span>
+    <span class="gp-step done">Vars</span><span class="gp-arrow">→</span>
+    <span class="gp-step done">Harmonize:A2</span><span class="gp-arrow">→</span>
+    <span class="gp-step done">Missing:B2</span><span class="gp-arrow">→</span>
+    <span class="gp-step done">Preprocess</span><span class="gp-arrow">→</span>
+    <span class="gp-step now">Modeling ⏳</span><span class="gp-arrow">→</span>
+    <span class="gp-step pending">Compile</span>
+  </div>
+
+  <!-- ===== MINDMAP VIEW ===== -->
+  <div id="view-mindmap" class="view active">
+    <div class="mindmap-area" id="mindmap-scroll">
+      <div class="mindmap">
+
+        <!-- Root: Variable Selection -->
+        <div class="node golden selected" onclick="selectNode('vars')" id="node-vars">
+          <div class="dot"></div>
+          <span class="label">Variable Selection</span>
+          <span class="sub">12 vars · committed</span>
+        </div>
+
+        <div class="connector"><div class="vline green"></div></div>
+
+        <!-- Fork 1 label -->
+        <div class="fork-label">⑂ Harmonization Strategy</div>
+        <div class="connector"><div class="vline" style="background:var(--border-light);"></div></div>
+
+        <!-- Fork 1: A1 vs A2 -->
+        <div class="fork-row">
+
+          <!-- Branch A1 (abandoned) -->
+          <div class="fork-branch" style="margin-right:40px;">
+            <svg width="80" height="20" style="position:absolute;left:50%;top:0;transform:translateX(-100%);"><path d="M80,0 L80,10 L0,10 L0,20" fill="none" stroke="var(--red-line)" stroke-width="2" stroke-dasharray="4 3"/></svg>
+            <div style="height:20px;"></div>
+            <div class="node abandoned" onclick="selectNode('a1-harm')" id="node-a1-harm">
+              <div class="dot"></div>
+              <span class="label">A1: RAND+VBS</span>
+              <span class="sub">n=18,469</span>
+              <span class="expand-btn" onclick="event.stopPropagation();toggleChildren('a1-children')">▼</span>
+              <span class="rewind-badge">↩</span>
+            </div>
+
+            <div class="children" id="a1-children">
+              <div class="connector"><div class="vline red"></div></div>
+              <div class="fork-label">⑂ Missing Data</div>
+              <div class="connector"><div class="vline red" style="height:8px;"></div></div>
+
+              <div class="fork-row">
+                <!-- A1-B1 -->
+                <div class="fork-branch" style="margin-right:16px;">
+                  <svg width="50" height="16" style="position:absolute;left:50%;top:0;transform:translateX(-100%);"><path d="M50,0 L50,8 L0,8 L0,16" fill="none" stroke="var(--red-line)" stroke-width="1.5" stroke-dasharray="3 2"/></svg>
+                  <div style="height:16px;"></div>
+                  <div class="node abandoned" onclick="selectNode('a1b1-miss')" id="node-a1b1-miss">
+                    <div class="dot"></div>
+                    <span class="label">B1: MI</span>
+                  </div>
+                  <div class="connector"><div class="vline red"></div></div>
+                  <div class="node abandoned" onclick="selectNode('a1b1-pre')">
+                    <div class="dot"></div>
+                    <span class="label">Preprocess</span>
+                  </div>
+                  <div class="connector"><div class="vline red"></div></div>
+                  <div class="node abandoned" onclick="selectNode('a1b1-model')" id="node-a1b1-model">
+                    <div class="dot"></div>
+                    <span class="label">Model (NB)</span>
+                    <span class="sub" style="color:var(--red);">⛔ poor fit</span>
+                  </div>
+                </div>
+
+                <!-- A1-B2 (never run) -->
+                <div class="fork-branch">
+                  <svg width="50" height="16" style="position:absolute;left:50%;top:0;"><path d="M0,0 L0,8 L50,8 L50,16" fill="none" stroke="var(--dim-line)" stroke-width="1.5" stroke-dasharray="3 2"/></svg>
+                  <div style="height:16px;"></div>
+                  <div class="node planned">
+                    <div class="dot"></div>
+                    <span class="label">B2: Listwise</span>
+                    <span class="sub">skipped</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Branch A2 (golden) -->
+          <div class="fork-branch" style="margin-left:40px;">
+            <svg width="80" height="20" style="position:absolute;right:50%;top:0;transform:translateX(100%);"><path d="M0,0 L0,10 L80,10 L80,20" fill="none" stroke="var(--green-line)" stroke-width="2"/></svg>
+            <div style="height:20px;"></div>
+            <div class="node golden" onclick="selectNode('a2-harm')" id="node-a2-harm">
+              <div class="dot"></div>
+              <span class="label">A2: RAND only</span>
+              <span class="sub">n=20,312 · ★</span>
+              <span class="expand-btn" onclick="event.stopPropagation();toggleChildren('a2-children')">▼</span>
+            </div>
+
+            <div class="children" id="a2-children">
+              <div class="connector"><div class="vline green"></div></div>
+              <div class="fork-label">⑂ Missing Data</div>
+              <div class="connector"><div class="vline" style="height:8px;background:var(--border-light);"></div></div>
+
+              <div class="fork-row">
+                <!-- A2-B1 (exploring as sensitivity) -->
+                <div class="fork-branch" style="margin-right:16px;">
+                  <svg width="50" height="16" style="position:absolute;left:50%;top:0;transform:translateX(-100%);"><path d="M50,0 L50,8 L0,8 L0,16" fill="none" stroke="var(--accent-line)" stroke-width="1.5"/></svg>
+                  <div style="height:16px;"></div>
+                  <div class="node exploring" onclick="selectNode('a2b1-miss')" id="node-a2b1-miss">
+                    <div class="dot"></div>
+                    <span class="label">B1: MI</span>
+                    <span class="sub">sensitivity</span>
+                  </div>
+                  <div class="connector"><div class="vline accent"></div></div>
+                  <div class="node exploring" onclick="selectNode('a2b1-pre')">
+                    <div class="dot"></div>
+                    <span class="label">Preprocess</span>
+                  </div>
+                  <div class="connector"><div class="vline accent"></div></div>
+                  <div class="node planned">
+                    <div class="dot"></div>
+                    <span class="label">Model</span>
+                    <span class="sub">pending</span>
+                  </div>
+                </div>
+
+                <!-- A2-B2 (golden) -->
+                <div class="fork-branch" style="margin-left:16px;">
+                  <svg width="50" height="16" style="position:absolute;right:50%;top:0;transform:translateX(100%);"><path d="M0,0 L0,8 L50,8 L50,16" fill="none" stroke="var(--green-line)" stroke-width="1.5"/></svg>
+                  <div style="height:16px;"></div>
+                  <div class="node golden" onclick="selectNode('a2b2-miss')">
+                    <div class="dot"></div>
+                    <span class="label">B2: Listwise</span>
+                    <span class="sub">★ n=16,800</span>
+                  </div>
+                  <div class="connector"><div class="vline green"></div></div>
+                  <div class="node golden" onclick="selectNode('a2b2-pre')">
+                    <div class="dot"></div>
+                    <span class="label">Preprocess</span>
+                  </div>
+                  <div class="connector"><div class="vline green"></div></div>
+                  <div class="node running" onclick="selectNode('a2b2-model')" id="node-a2b2-model">
+                    <div class="dot"></div>
+                    <span class="label">Model (NB)</span>
+                    <span class="sub">⏳ running</span>
+                  </div>
+                  <div class="connector"><div class="vline dim"></div></div>
+                  <div class="node planned" onclick="selectNode('compile')">
+                    <div class="dot"></div>
+                    <span class="label">Code Compile</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail Panel (right side) -->
+    <div class="detail-panel open" id="detail-panel">
+      <div class="detail-inner" id="detail-content">
+        <!-- Default: Variable Selection -->
+        <div class="detail-header">
+          <button class="detail-close" onclick="closeDetail()">✕</button>
+          <h3>Variable Selection</h3>
+          <p><span class="badge badge-done">● committed</span> · v2 · 10:05 AM</p>
+        </div>
+        <div class="detail-section">
+          <h4>Summary</h4>
+          <p>12 variables selected from RAND longitudinal + VBS datasets. Covers outcome, exposure, covariates, and survey weight for cross-sectional analysis at wave 12.</p>
+        </div>
+        <div class="detail-section">
+          <h4>Variables</h4>
+          <div class="detail-row"><span>Outcome</span><span>r12adla (ADL count 0–6)</span></div>
+          <div class="detail-row"><span>Exposure</span><span>r12vigact (vigorous PA freq)</span></div>
+          <div class="detail-row"><span>Covariates</span><span>r12bmi, r12cesd, ragender, raeduc, r12agey_b, r12drinkn, r12smokev, r12hibpe</span></div>
+          <div class="detail-row"><span>Weight</span><span>r12wtresp</span></div>
+        </div>
+        <div class="detail-section">
+          <h4>Validation (M7)</h4>
+          <div class="detail-checks">
+            <div class="detail-check pass">✓ All variables found in registry</div>
+            <div class="detail-check pass">✓ Weight variable valid for wave 12</div>
+            <div class="detail-check pass">✓ No duplicate variable roles</div>
+            <div class="detail-check pass">✓ Outcome/exposure appropriate types</div>
+            <div class="detail-check pass">✓ Cross-dataset merge feasible (hhidpn)</div>
+            <div class="detail-check pass">✓ Wave letter 'm' confirmed</div>
+          </div>
+        </div>
+        <div class="detail-section">
+          <h4>Researcher Note</h4>
+          <div class="detail-note">"确认变量选择。BMI 和 CES-D 都要包含作为 covariates。" — 10:05 AM</div>
+        </div>
+        <button class="compare-float-btn" onclick="openCompare()">⚖️ Compare with other paths at this step</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TIMELINE VIEW ===== -->
+  <div id="view-timeline" class="view">
+    <div class="view-scroll">
+      <div class="timeline" style="max-width:650px;">
+        <div class="tl-event"><div class="tl-marker" style="background:var(--yellow-bg);border-color:var(--yellow);">⏳</div><div class="tl-body"><div class="tl-current"><h4>A2→B2 Modeling running (golden path)</h4><p>NB on RAND-only + listwise (n=16,800). A2→B1 (MI sensitivity) also in progress.</p></div><div class="tl-time">v12 · 12:15 PM</div></div></div>
+        <div class="tl-event"><div class="tl-marker done">✓</div><div class="tl-body"><h4>A2→B2 Preprocessing committed</h4><p>BMI winsorized. Age centered at 60. CES-D standardized.</p><div class="tl-time">v11 · 12:05 PM · <span class="tl-tag user">confirmed</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker done">✓</div><div class="tl-body"><h4>A2→B2 committed as golden; B1 kept as sensitivity</h4><p>"先跑listwise，MI作为sensitivity保留"</p><div class="tl-time">v10 · 11:50 AM · <span class="tl-tag user">decision</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker fork">⑂</div><div class="tl-body"><h4>A2: Missing data fork — B1 (MI) vs B2 (Listwise)</h4><p>15% missing in RAND-only sample.</p><div class="tl-time">v9 · 11:40 AM · <span class="tl-tag auto">auto</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker done">✓</div><div class="tl-body"><h4>A2 Harmonization committed — RAND only, n=20,312</h4><div class="tl-time">v8 · 11:30 AM · <span class="tl-tag user">confirmed</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker rewind">↩</div><div class="tl-body"><h4>Rewind: A1 → A2</h4><p>"A1路径VBS biomarker共线性太强（VIF>10），退回来试A2。"</p><div class="tl-time">v7 · 11:20 AM · <span class="tl-tag user">rewind</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker abandon">✗</div><div class="tl-body"><h4>A1→B1 abandoned at Modeling</h4><p>AIC 24,350, r12vigact p=0.23. VBS collinearity (VIF>10).</p><div class="tl-time">v6 · 11:15 AM · <span class="tl-tag user">abandoned</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker fork">⑂</div><div class="tl-body"><h4>Harmonization fork — A1 vs A2</h4><div class="tl-time">v3 · 10:20 AM · <span class="tl-tag auto">auto</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker done">✓</div><div class="tl-body"><h4>Variable Selection committed</h4><p>12 variables. Researcher confirmed.</p><div class="tl-time">v2 · 10:05 AM · <span class="tl-tag user">confirmed</span></div></div></div>
+        <div class="tl-event"><div class="tl-marker" style="background:var(--surface2);">📋</div><div class="tl-body"><h4>Plan created</h4><div class="tl-time">v1 · 10:00 AM · <span class="tl-tag auto">auto</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Compare overlay -->
+<div id="compare-overlay" class="compare-overlay">
+  <div class="cmp-header"><h3>⚖️ Compare: A1→B1 vs A2→B2</h3><button class="cmp-close" onclick="closeCompare()">✕</button></div>
+  <div class="cmp-body">
+    <div class="cmp-cols">
+      <div class="cmp-col win"><h4>★ A2→B2 (Golden)</h4><p>RAND only → Listwise</p></div>
+      <div class="cmp-col"><h4>✗ A1→B1 (Abandoned)</h4><p>RAND+VBS → MI</p></div>
+    </div>
+    <table class="cmp-table">
+      <thead><tr><th>Metric</th><th>A2→B2</th><th>A1→B1</th></tr></thead>
+      <tbody>
+        <tr><td>Datasets</td><td class="w">RAND only</td><td>RAND + VBS</td></tr>
+        <tr><td>Sample</td><td>16,800 (83%)</td><td>17,400 (94%)</td></tr>
+        <tr><td>Collinearity</td><td class="w">All VIF < 5</td><td class="l">VIF > 10</td></tr>
+        <tr><td>Model fit</td><td class="w">⏳ running</td><td class="l">AIC 24,350</td></tr>
+        <tr><td>Key coef</td><td>⏳</td><td class="l">p = 0.23 (NS)</td></tr>
+        <tr><td>M7</td><td class="w">6/6</td><td class="l">4/6</td></tr>
+      </tbody>
+    </table>
+    <div class="cmp-reason">
+      <strong>Why A1→B1 was abandoned:</strong><br>
+      VBS biomarkers (grip, CRP) caused collinearity (VIF>10). Grip strength likely mediates physical activity → ADL, so including it as a covariate masks the exposure effect. Researcher: "退回来用RAND only更干净。"
+    </div>
+  </div>
+</div>
+
+<script>
+const detailData = {
+  'vars': {
+    title: 'Variable Selection', badge: 'badge-done', badgeText: '● committed', meta: 'v2 · 10:05 AM',
+    sections: [
+      { h: 'Summary', p: '12 variables selected from RAND longitudinal + VBS datasets for cross-sectional analysis at wave 12.' },
+      { h: 'Variables', rows: [['Outcome','r12adla (ADL count 0–6)'],['Exposure','r12vigact (vigorous PA)'],['Covariates (8)','r12bmi, r12cesd, ragender, raeduc, r12agey_b, r12drinkn, r12smokev, r12hibpe'],['Weight','r12wtresp']] },
+      { h: 'Validation (M7)', checks: ['✓ All variables found in registry','✓ Weight valid for wave 12','✓ No duplicate roles','✓ Outcome/exposure types OK','✓ Cross-dataset merge feasible','✓ Wave letter m confirmed'], status: 'pass' },
+      { h: 'Researcher Note', note: '"确认变量选择。BMI 和 CES-D 都要包含。" — 10:05 AM' }
+    ]
+  },
+  'a1-harm': {
+    title: 'A1: RAND + VBS Merge', badge: 'badge-abandoned', badgeText: '✗ abandoned', meta: 'v3 · 10:20 AM → Rewound at v7',
+    sections: [
+      { h: 'Summary', p: 'Inner join RAND + VBS on hhidpn. Included VBS biomarkers (grip strength, CRP). Sample: n=18,469.' },
+      { h: 'Why Abandoned', abandon: 'VBS biomarkers introduced severe collinearity (VIF > 10 for grip × CRP). The exposure variable (r12vigact) became non-significant downstream (p=0.23). Root cause: grip strength is likely on the causal pathway between physical activity and ADL disability — including it as a covariate masks the effect.' },
+      { h: 'Rewind Decision', note: '"A1路径的VBS biomarker共线性太强。grip strength可能在PA和ADL之间的causal pathway上，放进去当covariate会mask掉exposure的效应。退回来用RAND only更干净。" — v7, 11:20 AM' },
+      { h: 'Key Learning', p: 'When the exposure is physical activity, physical biomarkers (grip, gait speed) should NOT be covariates — they are likely mediators. This is a domain-specific methodological insight that a general-purpose AI would miss.' }
+    ]
+  },
+  'a2-harm': {
+    title: 'A2: RAND Only', badge: 'badge-done', badgeText: '★ golden path', meta: 'v8 · 11:30 AM',
+    sections: [
+      { h: 'Summary', p: 'Single dataset approach using RAND longitudinal file only. No cross-dataset merge. Simpler, avoids VBS collinearity issue. n=20,312.' },
+      { h: 'Why This Path', p: 'After A1 revealed VBS biomarker collinearity problems, RAND-only approach was chosen. All necessary variables (ADL, physical activity, demographics, chronic conditions) are available in RAND without needing VBS biomarkers.' },
+      { h: 'Validation (M7)', checks: ['✓ No duplicate hhidpn (20,312 unique)','✓ Sample size within range','✓ Weight coverage 99.1%','✓ All variables present','✓ Wave 12 confirmed','✓ No merge anomalies'], status: 'pass' },
+      { h: 'Researcher Note', note: '"RAND only 就够了，不需要VBS的biomarker。" — v8, 11:30 AM' }
+    ]
+  },
+  'a1b1-model': {
+    title: 'A1→B1: Modeling (NB) — Failed', badge: 'badge-abandoned', badgeText: '⛔ poor fit', meta: 'v5 · 11:10 AM',
+    sections: [
+      { h: 'Model Output', rows: [['Model','Negative Binomial (survey-weighted)'],['AIC','24,350 (poor)'],['Pseudo R²','0.04 (very low)'],['r12vigact coef','-0.08 (SE 0.06), p = 0.23'],['VIF max','12.3 (grip × CRP)']] },
+      { h: 'Why It Failed', abandon: 'Collinearity between VBS biomarkers (grip strength, CRP) inflated standard errors and absorbed variance from the exposure variable. The model technically converged but produced meaningless results — a classic "silent error" where the code runs fine but the methodology is wrong.' },
+      { h: 'Validation (M7)', checks: ['✓ Model converged','✓ No duplicate observations','⚠ VIF > 10 for 2 variables','⚠ Pseudo R² below 0.05 threshold','✓ Weight applied correctly','✓ Sample size adequate'], status: 'warn' },
+      { h: 'Negative Knowledge', p: 'This failure is preserved as a learning record. Future analyses with physical activity as exposure should NOT include physical biomarkers as covariates. This decision pattern is now documented in the analysis plan.' }
+    ]
+  },
+  'a2b2-model': {
+    title: 'A2→B2: Modeling (NB)', badge: 'badge-running', badgeText: '⏳ running', meta: 'v12 · 12:15 PM',
+    sections: [
+      { h: 'Configuration', rows: [['Model','Negative Binomial (survey-weighted)'],['Sample','n=16,800 (RAND only, listwise)'],['Outcome','r12adla (count 0–6)'],['Exposure','r12vigact'],['Covariates','8 (all RAND, no VBS biomarkers)'],['Weight','r12wtresp']] },
+      { h: 'Expected', p: 'Based on A1 failure analysis, removing VBS biomarkers should resolve the collinearity issue. Exposure coefficient expected to be significant with VIF < 5.' },
+      { h: 'Parallel Path', note: 'A2→B1 (MI sensitivity) is also running in parallel. Results will be compared once both complete to assess robustness of listwise deletion assumption.' }
+    ]
+  },
+  'a2b1-miss': {
+    title: 'A2→B1: MI (Sensitivity Analysis)', badge: 'badge-exploring', badgeText: '◐ sensitivity', meta: 'v10 · 11:50 AM',
+    sections: [
+      { h: 'Summary', p: 'Multiple Imputation (PMM, m=20) on RAND-only sample. 15% missingness on r12adla. Running as sensitivity analysis alongside the golden path (B2: Listwise).' },
+      { h: 'Purpose', p: 'If MI and listwise produce similar estimates, it strengthens confidence in the listwise results. If they diverge, it suggests the MCAR assumption may not hold and MI should be preferred.' },
+      { h: 'Researcher Note', note: '"先跑listwise看结果，MI作为sensitivity analysis保留。如果两个结果一致就说明listwise够用。" — v10, 11:50 AM' }
+    ]
+  }
+};
+
+function selectNode(id) {
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+  const node = document.getElementById('node-' + id);
+  if (node) node.classList.add('selected');
+  const data = detailData[id];
+  if (!data) return;
+  const panel = document.getElementById('detail-panel');
+  panel.classList.add('open');
+  let html = `<div class="detail-header"><button class="detail-close" onclick="closeDetail()">✕</button><h3>${data.title}</h3><p><span class="badge ${data.badge}">${data.badgeText}</span> · ${data.meta}</p></div>`;
+  data.sections.forEach(s => {
+    html += `<div class="detail-section"><h4>${s.h}</h4>`;
+    if (s.p) html += `<p>${s.p}</p>`;
+    if (s.rows) { s.rows.forEach(r => { html += `<div class="detail-row"><span>${r[0]}</span><span>${r[1]}</span></div>`; }); }
+    if (s.checks) { html += '<div class="detail-checks">'; s.checks.forEach(c => { const cls = c.startsWith('✓') ? 'pass' : c.startsWith('⚠') ? 'warn' : 'fail'; html += `<div class="detail-check ${cls}">${c}</div>`; }); html += '</div>'; }
+    if (s.note) html += `<div class="detail-note">${s.note}</div>`;
+    if (s.abandon) html += `<div class="detail-abandon">${s.abandon}</div>`;
+    html += '</div>';
+  });
+  html += '<button class="compare-float-btn" onclick="openCompare()">⚖️ Compare with other paths at this step</button>';
+  document.getElementById('detail-content').innerHTML = html;
+}
+
+function closeDetail() { document.getElementById('detail-panel').classList.remove('open'); }
+function toggleChildren(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.toggle('collapsed');
+    const btn = el.previousElementSibling?.querySelector('.expand-btn') || el.closest('.fork-branch')?.querySelector('.expand-btn');
+    if (btn) btn.classList.toggle('collapsed');
+  }
+}
+function openCompare() { document.getElementById('compare-overlay').classList.add('open'); }
+function closeCompare() { document.getElementById('compare-overlay').classList.remove('open'); }
+
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + (view === 'paths' ? 'mindmap' : view)).classList.add('active');
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  const tabs = document.querySelectorAll('.tab');
+  if (view === 'paths' || view === 'mindmap') tabs[0].classList.add('active');
+  if (view === 'timeline') tabs[1].classList.add('active');
+}
+</script>
+
+</body>
+</html>

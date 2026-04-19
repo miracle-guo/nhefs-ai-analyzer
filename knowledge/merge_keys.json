@@ -1,0 +1,151 @@
+{
+  "_description": "Merge topology for NHEFS + NHANES I public-use files. Every subject has a single logical identifier — the 5-character NCHS sample sequence number — but it is stored under three different field names across the release: SEQN (NHANES I baseline), SEQNUM (NHEFS 1986/1987/1992 + vital/mortality), and SEQNUM1 (NHEFS 1982-84 interview, which also has SEQNUM2..SEQNUM36 as redundant section headers). Harmonize all three to a canonical column named 'seqn' before merging.",
+  "canonical_key": "seqn",
+  "canonical_key_description": "5-character left-zero-padded NCHS sample sequence number. Unique per subject across the entire NHEFS cohort (n=14,407). NHANES I baseline files contain the superset (n=~23,808) of which the NHEFS cohort is a subset restricted to persons 25-74 at baseline exam.",
+  "key_aliases": {
+    "SEQN": {
+      "source": "NHANES I baseline DU####.txt files",
+      "width": 5,
+      "position": "cols 1-5",
+      "rename_to": "seqn"
+    },
+    "SEQNUM": {
+      "source": "NHEFS vital (n92vitl.txt), mortality (N92mort.txt), HCFS files, 1986/1987/1992 interview files",
+      "width": 5,
+      "position": "cols 12-16 (after 11-char BLANK1 prefix in vitl/mort; varies in interview files)",
+      "rename_to": "seqn"
+    },
+    "SEQNUM1": {
+      "source": "NHEFS 1982-84 interview (N82int.txt)",
+      "width": 5,
+      "position": "cols 1-5",
+      "rename_to": "seqn",
+      "notes": [
+        "The 1982-84 interview file has 36 SEQNUM variants (SEQNUM1..SEQNUM36), one per interview section header (A0, B0, C0, D1, D2, E1, E2, F0, G1, G2, ...). All carry the same subject ID per row. Use SEQNUM1 as the canonical merge key and ignore the others (or drop them entirely before analysis to save memory).",
+        "Verified: the non-blank entries of row 0 across all 33 SEQNUM columns all equal '20759' for the same subject."
+      ]
+    }
+  },
+  "datasets": {
+    "NHEFS_vital": {
+      "full_name": "NHEFS Vital and Tracing Status, 1992",
+      "file": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/n92vitl.txt",
+      "codebook": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/vitl.inputs.labels.txt",
+      "row_count": 14407,
+      "row_grain": "one row per NHEFS cohort member (full cohort)",
+      "primary_key": "SEQNUM",
+      "loader": "utils.nhefs_loader.load_nhefs_file",
+      "merge_notes": [
+        "Authoritative source for the NHEFS cohort. Use as the LEFT side of every cohort-level merge so unmatched subjects are explicit.",
+        "Contains demographics (SEXSUBJ, REVRACE, NDOBMO, NDOBYR), vital status per wave (CVITALST, VTLST82, VTLST86, VTLST87, VTLST92), interview completion flags (INTDIS82, INTDIS86, INTDIS87, INTDIS92), and survey design variables (STRATA, PSU)."
+      ]
+    },
+    "NHEFS_mortality": {
+      "full_name": "NHEFS Mortality, 1992",
+      "file": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/N92mort.txt",
+      "codebook": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/mort.inputs.labels.txt",
+      "row_count": 4497,
+      "row_grain": "one row per identified decedent through 1992",
+      "primary_key": "SEQNUM",
+      "loader": "utils.nhefs_loader.load_nhefs_file",
+      "merge_notes": [
+        "Left-join onto vital: unmatched rows = survivors (no death certificate).",
+        "Contains ICD-9 cause of death (ICDCODE, CADTHRC1/2/3), full entity/record axis conditions (ENAXCO1..20, RCAXCO1..20), and death date (YRDTH, DTDTHMO, DTDTHDY).",
+        "YRDTH is 2-digit year (e.g., '85' = 1985). Needs to be converted to 4-digit for time-to-event calculations."
+      ]
+    },
+    "NHEFS_1982_interview": {
+      "full_name": "NHEFS 1982-84 Interview",
+      "file": "datasets/raw/NHEFS_CDC_PublicUse/01_1982-84/N82int.txt",
+      "codebook": "datasets/raw/NHEFS_CDC_PublicUse/01_1982-84/intv82.inputs.labels.txt",
+      "row_count": 12220,
+      "row_grain": "one row per interviewed subject",
+      "primary_key": "SEQNUM1",
+      "loader": "utils.nhefs_loader.load_nhefs_file",
+      "merge_notes": [
+        "Left-join onto vital: unmatched rows (14407 - 12220 = 2187) = not interviewed in 1982-84 (deceased, refused, lost to followup).",
+        "Very wide file: 1,540 columns after dropping BLANK fields (1,663 in raw codebook). Subset aggressively to Phase-1 variables before merging.",
+        "The in-person interview includes measured weight, pulse, BP. Later waves are phone-only.",
+        "SEQNUM1..SEQNUM36 are all the same subject ID. Use SEQNUM1 as the merge key and drop the rest."
+      ]
+    },
+    "NHANES_I_anthropometry": {
+      "full_name": "NHANES I Anthropometry, Goniometry, Skeletal Age, Bone Density, Cortical Thickness (Tape 4111)",
+      "file": "datasets/raw/NHANES_I_1971_75/data/DU4111.txt",
+      "codebook": "datasets/raw/NHANES_I_1971_75/sas/DU4111.sas",
+      "codebook_formatted": "datasets/raw/NHANES_I_1971_75/sas_formatted/DU4111_F.sas",
+      "row_count": 23808,
+      "row_grain": "one row per NHANES I examined person (full examined sample, superset of NHEFS cohort)",
+      "primary_key": "SEQN",
+      "loader": "utils.nhanes_i_loader.load_nhanes_i_file",
+      "merge_notes": [
+        "Variable prefix: N1BM#### (NHANES 1 Body Measurements).",
+        "Contains BOTH anthropometry (weight kg/lb, height cm/in) AND demographics (age, sex, race, education, birth date, marital, household income). Demographics are repeated across all DU#### files — use this module as the authoritative baseline demographic source OR use NHEFS vitl (SEXSUBJ/REVRACE) which is derived from it.",
+        "Left-join onto vital: unmatched rows = rows in DU4111 not in the NHEFS cohort (age <25 or >74 at exam)."
+      ]
+    },
+    "NHANES_I_medical_exam": {
+      "full_name": "NHANES I Medical Examination (Tape 4233)",
+      "file": "datasets/raw/NHANES_I_1971_75/data/DU4233.txt",
+      "codebook": "datasets/raw/NHANES_I_1971_75/sas/DU4233.sas",
+      "codebook_formatted": "datasets/raw/NHANES_I_1971_75/sas_formatted/DU4233_F.sas",
+      "row_count": 23808,
+      "row_grain": "one row per examined person",
+      "primary_key": "SEQN",
+      "loader": "utils.nhanes_i_loader.load_nhanes_i_file",
+      "merge_notes": [
+        "Variable prefix: N1ME#### (NHANES 1 Medical Exam).",
+        "Contains physician-measured vitals: systolic BP (N1ME0228), diastolic BP (N1ME0231), pulse (N1ME0225), plus cardiovascular and physical exam findings.",
+        "Second BP reading recorded at N1ME0503/N1ME0504. Phase 1 uses the first reading (N1ME0228/N1ME0231); Phase 2 may average multiple readings."
+      ]
+    },
+    "NHANES_I_adult_medical_history": {
+      "full_name": "NHANES I Medical History, 12-74 years (Tape 4081)",
+      "file": "datasets/raw/NHANES_I_1971_75/data/DU4081.txt",
+      "codebook": "datasets/raw/NHANES_I_1971_75/sas/DU4081.sas",
+      "codebook_formatted": "datasets/raw/NHANES_I_1971_75/sas_formatted/DU4081_F.sas",
+      "row_count": 18836,
+      "row_grain": "one row per examined person aged 12-74",
+      "primary_key": "SEQN",
+      "loader": "utils.nhanes_i_loader.load_nhanes_i_file",
+      "merge_notes": [
+        "Variable prefix: N1AH#### (NHANES 1 Adult History).",
+        "Self-reported conditions: diabetes (N1AH0431), high blood pressure (N1AH0423), heart (N1AH0417 weak heart, N1AH0435 heart trouble or HBP).",
+        "All NHEFS cohort subjects (25-74 at exam) fall within this module's 12-74 range, so the NHEFS cohort should match entirely."
+      ]
+    },
+    "NHANES_I_cardio_resp_supplement": {
+      "full_name": "NHANES I General Medical History Supplement + Respiratory + Cardiovascular (Tape 4091)",
+      "file": "datasets/raw/NHANES_I_1971_75/data/DU4091.txt",
+      "codebook": "datasets/raw/NHANES_I_1971_75/sas/DU4091.sas",
+      "codebook_formatted": "datasets/raw/NHANES_I_1971_75/sas_formatted/DU4091_F.sas",
+      "row_count": 6913,
+      "row_grain": "one row per supplement participant (subsample)",
+      "primary_key": "SEQN",
+      "loader": "utils.nhanes_i_loader.load_nhanes_i_file",
+      "merge_notes": [
+        "Variable prefix: N1GM#### (NHANES 1 General Medical).",
+        "Baseline smoking status variables: ever smoked 100+ cigarettes (N1GM0378), currently smokes cigarettes (N1GM0379), time since last smoked (N1GM0382), usual cigarettes/day (N1GM0384).",
+        "IMPORTANT: Only ~6,913 of the 23,808 examined (and ~half of the 14,407 NHEFS cohort) received this supplement. Analyses using baseline smoking from here will have limited N.",
+        "PREFERRED ALTERNATIVE: Use the 1982 NHEFS interview (N82int.txt) smoking questions, which include recalled baseline smoking status with much better cohort coverage (~12,220 / 14,407)."
+      ]
+    }
+  },
+  "merge_topology": {
+    "description": "Recommended merge order for Phase-1 analyses. Start from vital (cohort anchor) and left-join everything else so unmatched rates are explicit at every step.",
+    "canonical_order": [
+      "NHEFS_vital",
+      "NHANES_I_anthropometry",
+      "NHANES_I_medical_exam",
+      "NHANES_I_adult_medical_history",
+      "NHEFS_1982_interview",
+      "NHEFS_mortality"
+    ],
+    "notes": [
+      "Normalize every primary key to 'seqn' (lowercase, 5-char string) BEFORE merging. Use .str.strip().str.zfill(5) to avoid mismatches from leading zeros or padding.",
+      "Audit merge quality after every join: report matched / left-only / right-only counts. M7 validation enforces this.",
+      "Expected Phase-1 analytic sample after all merges: ~12,000 rows (intersection of NHEFS cohort and 1982 interview respondents). Finer constraints (complete cases on weight/smoking/covariates) will drop to ~1,500-1,600 — matching the Hernán/Robins nhefs.csv size.",
+      "Expected Phase-1 analytic sample if using DU4091 for baseline smoking: ~3,000-4,000 (intersection of cohort, 1982 interview, and cardio supplement). Significantly smaller — another reason to prefer recalled smoking from N82int."
+    ]
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "_description": "NHEFS + NHANES I wave mapping. NHEFS is a 5-wave longitudinal study: the NHANES I baseline examination (1971-75) plus four follow-up waves (1982-84, 1986, 1987, 1992). Each wave has its own eligibility rules and target sample size — see per-wave 'eligible_n' and 'interviewed_n' fields. Unlike HRS (biennial and synchronous), NHEFS wave spacing is irregular and the 1986 wave was restricted to subjects 55-74 at baseline.",
+  "_primary_source": "NHEFS_CDC_PublicUse/00_readme/readme_ftp.txt",
+  "_total_cohort": 14407,
+  "_cohort_definition": "All persons 25-74 years of age who completed a medical examination at NHANES I in 1971-75",
+  "waves": {
+    "baseline": {
+      "wave_id": "baseline",
+      "year_range": "1971-1975",
+      "survey": "NHANES I",
+      "file_prefix": "DU",
+      "eligible_n": 23808,
+      "examined_n": 23808,
+      "cohort_n": 14407,
+      "data_files": {
+        "anthropometry": "datasets/raw/NHANES_I_1971_75/data/DU4111.txt",
+        "medical_exam": "datasets/raw/NHANES_I_1971_75/data/DU4233.txt",
+        "medical_history_adult": "datasets/raw/NHANES_I_1971_75/data/DU4081.txt",
+        "cardio_resp_supplement": "datasets/raw/NHANES_I_1971_75/data/DU4091.txt"
+      },
+      "primary_key": "SEQN",
+      "notes": [
+        "NHANES I examined ~23,808 people across all ages; the NHEFS cohort is the 14,407 of those who were 25-74 at exam.",
+        "The cardio/respiratory supplement (DU4091) was given to only a subsample of ~6,913 subjects. Analyses requiring variables from DU4091 (e.g., baseline smoking) will lose roughly half the NHEFS cohort on merge.",
+        "Demographics (age, sex, race, education) are repeated in each DU#### file under that module's variable prefix (N1BM#### for DU4111, N1AH#### for DU4081, etc.). Prefer NHEFS vitl for demographics to avoid prefix mismatch."
+      ]
+    },
+    "f1_1982": {
+      "wave_id": "f1_1982",
+      "year_range": "1982-1984",
+      "survey": "NHEFS Followup 1",
+      "file_prefix": "82",
+      "eligible_n": 14407,
+      "interviewed_n": 12220,
+      "data_files": {
+        "interview": "datasets/raw/NHEFS_CDC_PublicUse/01_1982-84/N82int.txt",
+        "health_care_facility_stays": "datasets/raw/NHEFS_CDC_PublicUse/01_1982-84/n82hcfs.txt"
+      },
+      "primary_key": "SEQNUM1",
+      "notes": [
+        "Conducted in person. The interview file has 36 SEQNUM variants (SEQNUM1..SEQNUM36), one header per interview section. Use SEQNUM1 as the canonical merge key — all variants carry the same subject ID per row.",
+        "This wave includes physical measurements (weight, pulse, blood pressure) taken in person. Later waves (1986, 1987, 1992) are telephone-only with no physical measures.",
+        "Also includes a recall of baseline smoking status, which is the preferred source for 'smoked at baseline' variables (better coverage than DU4091 baseline supplement)."
+      ]
+    },
+    "f2_1986": {
+      "wave_id": "f2_1986",
+      "year_range": "1986",
+      "survey": "NHEFS Followup 2",
+      "file_prefix": "86",
+      "eligible_n": 3980,
+      "interviewed_n": null,
+      "data_files": {
+        "interview": "datasets/raw/NHEFS_CDC_PublicUse/02_1986/n86int.txt",
+        "health_care_facility_stays": "datasets/raw/NHEFS_CDC_PublicUse/02_1986/n86hcfs.txt"
+      },
+      "primary_key": "SEQNUM",
+      "notes": [
+        "RESTRICTED to subjects 55-74 at baseline and not known to be deceased at the 1982-84 NHEFS. Only ~3,980 subjects eligible.",
+        "Telephone interview only — no physical measurements.",
+        "Not used in Phase 1 (Phase 1 uses baseline + 1982 only). Listed here for Phase 2 scope."
+      ]
+    },
+    "f3_1987": {
+      "wave_id": "f3_1987",
+      "year_range": "1987",
+      "survey": "NHEFS Followup 3",
+      "file_prefix": "87",
+      "eligible_n": 11750,
+      "interviewed_n": null,
+      "data_files": {
+        "interview": "datasets/raw/NHEFS_CDC_PublicUse/03_1987/n87int.txt",
+        "health_care_facility_stays": "datasets/raw/NHEFS_CDC_PublicUse/03_1987/n87hcfs.txt"
+      },
+      "primary_key": "SEQNUM",
+      "notes": [
+        "Full nondeceased NHEFS cohort (~11,750 attempted).",
+        "Telephone interview only.",
+        "Not used in Phase 1."
+      ]
+    },
+    "f4_1992": {
+      "wave_id": "f4_1992",
+      "year_range": "1992",
+      "survey": "NHEFS Followup 4",
+      "file_prefix": "92",
+      "eligible_n": 11195,
+      "interviewed_n": null,
+      "data_files": {
+        "interview": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/N92int.txt",
+        "health_care_facility_stays": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/n92hcfs.txt",
+        "health_care_facility_stays_supplement": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/n92hcfsp.txt",
+        "mortality": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/N92mort.txt",
+        "vital_and_tracing_status": "datasets/raw/NHEFS_CDC_PublicUse/04_1992/n92vitl.txt"
+      },
+      "primary_key": "SEQNUM",
+      "notes": [
+        "Full nondeceased NHEFS cohort (~11,195 attempted).",
+        "Telephone interview only.",
+        "CUMULATIVE files: vitl.txt covers the full 14,407 cohort (vital + tracing status across all prior waves), and mort.txt covers all 4,497 decedents identified through 1992. These two files anchor the whole cohort regardless of which follow-up wave the analysis targets.",
+        "Phase 1 uses n92vitl.txt (demographics, vital status) and N92mort.txt (mortality) but does NOT use the 1992 interview file."
+      ]
+    }
+  },
+  "phase_1_waves": ["baseline", "f1_1982", "f4_1992"],
+  "phase_1_notes": [
+    "Phase 1 scope: baseline (for pre-quit covariates) + 1982 interview (for 1982 weight and smoking-quit status) + 1992 vital/mortality (for optional bonus survival analyses).",
+    "The 1986 and 1987 waves are intentionally excluded from Phase 1 to keep scope tight."
+  ]
+}

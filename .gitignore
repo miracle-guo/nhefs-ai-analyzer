@@ -1,0 +1,33 @@
+# OS
+.DS_Store
+
+# Large datasets (tracked via DVC or stored separately)
+datasets/*.dta
+
+# NHEFS raw CDC public-use files (alternative path, if present)
+datasets/raw/
+datasets/NHEFS_Dataset/
+
+# Derived parquets — regenerated from raw via ETL pipeline
+datasets/derived/
+
+# Claude local settings
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Runtime workspace (analysis plans, decision logs, artifacts — all generated)
+workspace/
+
+# Third-party code repos cloned into tests fixtures — not tracked in git.
+# These contain nested .git directories (including orphan checkouts) that
+# cause "does not have a commit checked out" errors on git add.
+tests/nhefs_fixtures/code/
+
+# Plugin release artifact
+*.plugin

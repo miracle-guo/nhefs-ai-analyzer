@@ -1,0 +1,75 @@
+{
+  "_description": "Unified indicator / derived-variable library for NHEFS analyses. Each key is a variable name; M4 and M6 read this file to construct derived columns. New indicators are appended here (not as separate files).",
+  "nhefs_bmi_baseline": {
+    "name": "nhefs_bmi_baseline",
+    "label": "Baseline BMI (kg/m²)",
+    "type": "derived_continuous",
+    "components": ["N1BM0260", "N1BM0266"],
+    "method": "formula",
+    "formula": "bmi = (N1BM0260 / 100) / ((N1BM0266 / 1000) ^ 2)",
+    "formula_notes": "N1BM0260 is weight in kg*100 (implied decimal). N1BM0266 is height in cm*10 (implied decimal). Divide appropriately before computing BMI.",
+    "expected_range": [12, 60],
+    "source_dataset": "NHANES_I_anthropometry",
+    "source_wave": "baseline",
+    "notes": "Physically measured weight and height. More reliable than self-reported."
+  },
+  "nhefs_comorbidity": {
+    "name": "nhefs_comorbidity",
+    "label": "Baseline comorbidity count (0-3)",
+    "type": "composite_count",
+    "components": ["N1AH0431", "N1AH0423", "N1AH0417"],
+    "component_labels": {
+      "N1AH0431": "Diabetes (self-reported)",
+      "N1AH0423": "High blood pressure (self-reported)",
+      "N1AH0417": "Weak heart (self-reported)"
+    },
+    "method": "sum",
+    "component_recode": "Recode 1 or 2 to 1 (yes), 3 to 0 (no), 8 to NaN",
+    "range": [0, 3],
+    "missing_rule": "propagate",
+    "source_dataset": "NHANES_I_adult_medical_history",
+    "source_wave": "baseline",
+    "notes": "Phase-1 minimal comorbidity count. Phase 2 can expand with additional conditions from DU4081 and DU4091."
+  },
+  "nhefs_education_cat": {
+    "name": "nhefs_education_cat",
+    "label": "Education categories (5-level)",
+    "type": "derived_categorical",
+    "components": ["N1BM0112"],
+    "method": "recode",
+    "recode_rules": {
+      "1": {"codes": ["10", "21", "22", "23", "24", "25", "26", "27", "28"], "label": "8th grade or less"},
+      "2": {"codes": ["31", "32"], "label": "Some high school"},
+      "3": {"codes": ["33"], "label": "High school graduate"},
+      "4": {"codes": ["34", "35", "36", "37", "38", "39", "40", "41"], "label": "Some college"},
+      "5": {"codes": ["42", "43", "44", "45", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55"], "label": "College graduate or higher"}
+    },
+    "source_dataset": "NHANES_I_anthropometry",
+    "source_wave": "baseline",
+    "notes": "NCHS education codes from DU4111_F.sas PROC FORMAT BM0112F. Exact code-to-grade mappings should be verified against the formatted SAS script."
+  },
+  "nhefs_heavy_drinker": {
+    "name": "nhefs_heavy_drinker",
+    "label": "Heavy drinker at 1982 (binary)",
+    "type": "derived_binary",
+    "components": ["M12"],
+    "method": "derived",
+    "formula": "1 if M12 in (3, 4) (moderate-heavy or heavy), 0 if M12 in (1, 2) (non/light-moderate), NaN if M12=7 (non-drinker skip) or 9",
+    "values": {"0": "Non-drinker or light-moderate", "1": "Moderate-heavy or heavy"},
+    "source_dataset": "NHEFS_1982_interview",
+    "source_wave": "f1_1982",
+    "notes": "M12 is self-rated drinking intensity: 1=non-drinker, 2=light-moderate, 3=moderate-heavy, 4=heavy, 7=NA (skip). Exact category labels need codebook PDF verification."
+  },
+  "nhefs_smoking_status": {
+    "name": "nhefs_smoking_status",
+    "label": "Smoking status at 1982 (3-category)",
+    "type": "derived_categorical",
+    "components": ["L1", "L2a"],
+    "method": "derived",
+    "formula": "0=never smoker (L1!=1), 1=current smoker (L1=1 AND L2a=1), 2=quit (L1=1 AND L2a=2)",
+    "values": {"0": "Never smoker", "1": "Current smoker", "2": "Quit by 1982"},
+    "source_dataset": "NHEFS_1982_interview",
+    "source_wave": "f1_1982",
+    "notes": "Extends the binary qsmk to include never-smokers as a third category. Useful for descriptive analyses."
+  }
+}

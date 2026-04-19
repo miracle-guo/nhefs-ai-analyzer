@@ -1,0 +1,561 @@
+{
+  "_description": "Phase-1 NHEFS + NHANES I variable registry. Curated for the canonical smoking-cessation → weight-gain research question and the minimal set of covariates needed to reproduce the Hernán/Robins Ch 12 result. Track B will expand this registry to cover all 4 NHEFS follow-up waves and additional NHANES I baseline modules.",
+  "_version": "0.1.0-phase1",
+  "_source_codebooks": [
+    "NHEFS_CDC_PublicUse/04_1992/vitl.inputs.labels.txt",
+    "NHEFS_CDC_PublicUse/04_1992/mort.inputs.labels.txt",
+    "NHEFS_CDC_PublicUse/01_1982-84/intv82.inputs.labels.txt",
+    "NHANES_I_1971_75/sas_formatted/DU4081_F.sas",
+    "NHANES_I_1971_75/sas_formatted/DU4091_F.sas",
+    "NHANES_I_1971_75/sas_formatted/DU4111_F.sas",
+    "NHANES_I_1971_75/sas_formatted/DU4233_F.sas"
+  ],
+  "_total_variables": 48,
+  "_conventions": {
+    "source": "Which file the variable lives in. Matches a key in merge_keys.json -> datasets.",
+    "wave": "baseline | f1_1982 | f2_1986 | f3_1987 | f4_1992 | all (see wave_mapping.json)",
+    "roles": "Suggested analytic role(s): identifier, demographic, outcome, exposure, covariate, weight, design, flag. Descriptive — not enforced.",
+    "missing_values": "List of string sentinels to replace with NaN. Applied by M3 after .str.strip(). Overrides the width-based defaults in nhefs_missing_conventions.json."
+  },
+  "domains": {
+    "identifier": {
+      "description": "Subject identifiers and cohort anchors",
+      "variables": {
+        "seqn": {
+          "label": "NCHS sample sequence number (canonical)",
+          "type": "string",
+          "width": 5,
+          "source": "canonical",
+          "wave": "all",
+          "roles": ["identifier"],
+          "notes": "Canonical post-harmonization name. Built from SEQN (NHANES I), SEQNUM (NHEFS vital/mort/later waves), or SEQNUM1 (NHEFS 1982 interview). See merge_keys.json.",
+          "missing_values": []
+        }
+      }
+    },
+    "demographic": {
+      "description": "Baseline demographic characteristics",
+      "variables": {
+        "SEXSUBJ": {
+          "label": "Sex of subject",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["demographic", "covariate"],
+          "values": {"1": "Male", "2": "Female"},
+          "missing_values": [""]
+        },
+        "REVRACE": {
+          "label": "Revised race (NHEFS harmonized coding)",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["demographic", "covariate"],
+          "values": {
+            "1": "Not stated / unknown",
+            "2": "Other",
+            "3": "Black",
+            "4": "White",
+            "5": "Asian or Pacific Islander"
+          },
+          "notes": "Exact coding verified against readme. NHEFS uses REVRACE as the recoded race field; NHANES I uses N1BM0103 with different codes ({1:White, 2:Negro, 3:Other}) — do not merge blindly.",
+          "missing_values": [""]
+        },
+        "NDOBMO": {
+          "label": "NHEFS date of birth — month",
+          "type": "numeric",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["demographic"],
+          "missing_values": ["", "99"]
+        },
+        "NDOBYR": {
+          "label": "NHEFS date of birth — year (4-digit)",
+          "type": "numeric",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["demographic"],
+          "missing_values": ["", "9999"]
+        },
+        "NEXAMYR": {
+          "label": "Year of NHANES I examination (2-digit)",
+          "type": "numeric",
+          "source": "NHEFS_vital",
+          "wave": "baseline",
+          "roles": ["demographic"],
+          "notes": "2-digit year. Add 1900 for 4-digit. Range: 71-75.",
+          "missing_values": ["", "99"]
+        },
+        "NEXAMAGE": {
+          "label": "Age at NHANES I examination",
+          "type": "numeric",
+          "source": "NHEFS_vital",
+          "wave": "baseline",
+          "roles": ["demographic", "covariate"],
+          "notes": "Range 25-74 by NHEFS cohort definition. Primary 'baseline age' variable for Phase-1 analyses.",
+          "expected_range": [25, 74],
+          "missing_values": ["", "99"]
+        },
+        "MARTSTAT": {
+          "label": "Marital status of subject when last interviewed",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["demographic", "covariate"],
+          "missing_values": [""]
+        },
+        "N1BM0112": {
+          "label": "Highest grade of regular school ever attended",
+          "type": "categorical",
+          "source": "NHANES_I_anthropometry",
+          "wave": "baseline",
+          "roles": ["demographic", "covariate"],
+          "notes": "NCHS education codes (see DU4111_F.sas PROC FORMAT BM0112F). Common groupings: <HS (10-32), HS (33), some college (34-41), college+ (42+). Derived categorical 'education' var is built in M4 preprocessing.",
+          "missing_values": ["", "99"]
+        }
+      }
+    },
+    "survey_design": {
+      "description": "Survey sampling design variables for weighted analyses (Phase 2)",
+      "variables": {
+        "STRATA": {
+          "label": "NHEFS sampling stratum",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["design"],
+          "notes": "Used with PSU for Taylor-series variance estimation in complex survey analyses. Not used in Phase 1 (unweighted analysis); wired up in Phase 2.",
+          "missing_values": [""]
+        },
+        "PSU": {
+          "label": "Pseudo primary sampling unit",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["design"],
+          "notes": "Nested within STRATA. Phase 2 only.",
+          "missing_values": [""]
+        }
+      }
+    },
+    "vital_status": {
+      "description": "Vital status and interview disposition per wave",
+      "variables": {
+        "CVITALST": {
+          "label": "Current vital status of subject",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "all",
+          "roles": ["outcome", "flag"],
+          "values": {
+            "1": "Alive",
+            "3": "Deceased (other source)",
+            "4": "Deceased (death certificate)",
+            "5": "Deceased (reported, not confirmed)",
+            "6": "Deceased (other)"
+          },
+          "notes": "Values 3-6 all indicate death. Phase-1 all-cause mortality flag is derived as CVITALST != 1.",
+          "missing_values": [""]
+        },
+        "VTLST82": {
+          "label": "Vital status at 1982-84 NHEFS",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "f1_1982",
+          "roles": ["flag"],
+          "missing_values": [""]
+        },
+        "INTDIS82": {
+          "label": "Interview disposition, 1982-84 NHEFS",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "f1_1982",
+          "roles": ["flag"],
+          "notes": "Indicates whether the subject was interviewed in 1982-84, and if not, why not (deceased, refused, lost, etc.).",
+          "missing_values": [""]
+        },
+        "VTLST92": {
+          "label": "Vital status at 1992 NHEFS",
+          "type": "categorical",
+          "source": "NHEFS_vital",
+          "wave": "f4_1992",
+          "roles": ["flag"],
+          "missing_values": [""]
+        }
+      }
+    },
+    "mortality": {
+      "description": "Date and cause of death (populated only for decedents)",
+      "variables": {
+        "DTDTHMO": {
+          "label": "Month of death",
+          "type": "numeric",
+          "source": "NHEFS_mortality",
+          "wave": "all",
+          "roles": ["outcome"],
+          "missing_values": ["", "99"]
+        },
+        "YRDTH": {
+          "label": "Year of death (2-digit)",
+          "type": "numeric",
+          "source": "NHEFS_mortality",
+          "wave": "all",
+          "roles": ["outcome"],
+          "notes": "Add 1900 for 4-digit. Range: 71-92.",
+          "missing_values": ["", "99"]
+        },
+        "DTAGEDTH": {
+          "label": "Age at death (detail)",
+          "type": "numeric",
+          "source": "NHEFS_mortality",
+          "wave": "all",
+          "roles": ["outcome"],
+          "missing_values": ["", "999"]
+        },
+        "ICDCODE": {
+          "label": "ICD-9 underlying cause of death",
+          "type": "string",
+          "source": "NHEFS_mortality",
+          "wave": "all",
+          "roles": ["outcome"],
+          "missing_values": [""]
+        },
+        "CADTHRC3": {
+          "label": "Cause of death recode (34 groups)",
+          "type": "categorical",
+          "source": "NHEFS_mortality",
+          "wave": "all",
+          "roles": ["outcome"],
+          "notes": "Easier analytic grouping than raw ICD-9. Used for cause-specific mortality in Phase-2 survival analyses.",
+          "missing_values": [""]
+        }
+      }
+    },
+    "physical_baseline": {
+      "description": "Physical measurements at NHANES I baseline examination",
+      "variables": {
+        "N1BM0255": {
+          "label": "Weight in pounds (XXX.XX, implied decimal)",
+          "type": "numeric",
+          "source": "NHANES_I_anthropometry",
+          "wave": "baseline",
+          "roles": ["covariate", "exposure"],
+          "notes": "Width 5, 2 implied decimal places. Divide raw integer by 100 to get pounds. Prefer N1BM0260 (kilograms) for analysis.",
+          "expected_range": [50, 500],
+          "missing_values": ["", "88888"]
+        },
+        "N1BM0260": {
+          "label": "Weight in kilograms (XXX.XX, implied decimal)",
+          "type": "numeric",
+          "source": "NHANES_I_anthropometry",
+          "wave": "baseline",
+          "roles": ["covariate", "exposure"],
+          "notes": "Width 5, 2 implied decimal places. Divide raw integer by 100 to get kg. PRIMARY baseline weight variable — used for the wt71 side of wt82_71.",
+          "expected_range": [25, 200],
+          "missing_values": ["", "88888"]
+        },
+        "N1BM0266": {
+          "label": "Height in centimeters (XXX.X, implied decimal)",
+          "type": "numeric",
+          "source": "NHANES_I_anthropometry",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "notes": "Width 4, 1 implied decimal. Divide raw by 10 to get cm. Primary baseline height for BMI calculation.",
+          "expected_range": [100, 220],
+          "missing_values": ["", "8888"]
+        },
+        "N1ME0225": {
+          "label": "Pulse (beats per minute)",
+          "type": "numeric",
+          "source": "NHANES_I_medical_exam",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "expected_range": [30, 200],
+          "missing_values": ["", "888"]
+        },
+        "N1ME0228": {
+          "label": "Systolic blood pressure (mmHg), first reading",
+          "type": "numeric",
+          "source": "NHANES_I_medical_exam",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "expected_range": [70, 260],
+          "missing_values": ["", "888", "999"]
+        },
+        "N1ME0231": {
+          "label": "Diastolic blood pressure (mmHg), first reading",
+          "type": "numeric",
+          "source": "NHANES_I_medical_exam",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "expected_range": [30, 160],
+          "missing_values": ["", "888", "999"]
+        }
+      }
+    },
+    "health_conditions_baseline": {
+      "description": "Self-reported baseline health conditions (DU4081 adult medical history)",
+      "variables": {
+        "N1AH0417": {
+          "label": "Weak heart (self-reported)",
+          "type": "categorical",
+          "source": "NHANES_I_adult_medical_history",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "values": {"1": "Regularly", "2": "Occasionally", "3": "No"},
+          "missing_values": ["", "8"]
+        },
+        "N1AH0423": {
+          "label": "High blood pressure (self-reported)",
+          "type": "categorical",
+          "source": "NHANES_I_adult_medical_history",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "values": {"1": "Regularly", "2": "Occasionally", "3": "No"},
+          "missing_values": ["", "8"]
+        },
+        "N1AH0431": {
+          "label": "Diabetes (self-reported)",
+          "type": "categorical",
+          "source": "NHANES_I_adult_medical_history",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "values": {"1": "Yes", "2": "No"},
+          "missing_values": ["", "8"]
+        },
+        "N1AH0435": {
+          "label": "Heart trouble or high blood pressure (composite)",
+          "type": "categorical",
+          "source": "NHANES_I_adult_medical_history",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "values": {"1": "Yes", "2": "No"},
+          "missing_values": ["", "8"]
+        }
+      }
+    },
+    "smoking_baseline": {
+      "description": "Baseline smoking variables from NHANES I cardio/resp supplement (DU4091). LIMITED COVERAGE: ~6,913 subjects, ~half of NHEFS cohort. Prefer smoking_1982 variables for primary analysis.",
+      "variables": {
+        "N1GM0378": {
+          "label": "Ever smoked at least 100 cigarettes in lifetime",
+          "type": "categorical",
+          "source": "NHANES_I_cardio_resp_supplement",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "values": {"1": "Yes", "2": "No"},
+          "coverage_warning": "Only ~6,913 subjects received the cardio/resp supplement. See nhefs_missing_conventions.json structural_missingness.",
+          "missing_values": ["", "8"]
+        },
+        "N1GM0379": {
+          "label": "Currently smokes cigarettes (at baseline)",
+          "type": "categorical",
+          "source": "NHANES_I_cardio_resp_supplement",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "values": {"1": "Yes", "2": "No"},
+          "coverage_warning": "~6,913 subjects only.",
+          "missing_values": ["", "8"]
+        },
+        "N1GM0384": {
+          "label": "Average cigarettes per day (when currently smoking)",
+          "type": "numeric",
+          "source": "NHANES_I_cardio_resp_supplement",
+          "wave": "baseline",
+          "roles": ["covariate"],
+          "notes": "Codes 90/98 = '(87+ cigarettes per day)' per PROC FORMAT. Topcoded, treat as continuous with awareness.",
+          "missing_values": ["", "87", "88", "99"]
+        }
+      }
+    },
+    "smoking_1982": {
+      "description": "1982-84 interview smoking status. PRIMARY source for Phase-1 'qsmk' (quit smoking) derivation because it has far better cohort coverage (~12,220) than the DU4091 baseline supplement.",
+      "variables": {
+        "L1": {
+          "label": "Subject ever smoked 100+ cigarettes in lifetime",
+          "type": "categorical",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["exposure"],
+          "values": {"1": "Yes", "2": "No"},
+          "missing_values": ["", "8"]
+        },
+        "L2a": {
+          "label": "Subject smokes cigarettes now (1982)",
+          "type": "categorical",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["exposure"],
+          "values": {"1": "Yes", "2": "No"},
+          "notes": "Combined with L1: qsmk = 1 if L1=1 (ever smoker) AND L2a=2 (not now) — i.e., 'quit by 1982'. qsmk = 0 if L1=1 AND L2a=1 — 'still smoking in 1982'. qsmk undefined if L1=2 (never smoker).",
+          "missing_values": ["", "8"]
+        },
+        "L2b": {
+          "label": "Subject stopped smoking cigarettes in past year",
+          "type": "categorical",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["exposure"],
+          "values": {"1": "Yes", "2": "No"},
+          "missing_values": ["", "8"]
+        },
+        "L4P1": {
+          "label": "Subject stopped smoking cigarettes at least 1 year (1st period)",
+          "type": "categorical",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["exposure"],
+          "values": {"1": "Yes", "2": "No"},
+          "missing_values": ["", "8"]
+        },
+        "L5P1": {
+          "label": "Age subject stopped smoking cigarettes > 1 yr (1st period)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["exposure"],
+          "notes": "Used with NEXAMAGE and NDOBYR to determine whether the quit happened between baseline (1971-75) and 1982. This is what defines the 'quit smoking between NHANES I and 1982' variable.",
+          "expected_range": [10, 80],
+          "missing_values": ["", "88", "99"]
+        },
+        "L7": {
+          "label": "Number of cigarettes per day subject smokes now",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "expected_range": [0, 100],
+          "missing_values": ["", "88", "99"]
+        },
+        "L9": {
+          "label": "Total average cigarettes per day subject smoked (all years)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "notes": "Maps to the Hernán 'smokeintensity' covariate in the textbook nhefs.csv. Higher intensity at baseline predicts both quit probability and weight change — classic confounder.",
+          "expected_range": [0, 100],
+          "missing_values": ["", "88", "99"]
+        }
+      }
+    },
+    "physical_1982": {
+      "description": "Physical measurements taken in person at the 1982-84 NHEFS interview. Critical for computing wt82_71 weight change outcome.",
+      "variables": {
+        "PMR5b1": {
+          "label": "Weight measurement, 1st reading (1982)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["outcome"],
+          "notes": "Measured, not self-reported. This is the wt82 side of the classic wt82_71 = wt82 - wt71 outcome. Check codebook PDF for exact units (likely pounds, width TBD).",
+          "missing_values": [""]
+        },
+        "PMR5b2": {
+          "label": "Weight measurement, 2nd reading (1982)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["outcome"],
+          "notes": "Some subjects received two readings. M4 averages both when available.",
+          "missing_values": [""]
+        },
+        "PMR4c1SY": {
+          "label": "1st blood pressure reading — systolic (1982)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "missing_values": [""]
+        },
+        "PMR4c1DI": {
+          "label": "1st blood pressure reading — diastolic (1982)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "missing_values": [""]
+        },
+        "PMR4cAVS": {
+          "label": "Average of 2nd/3rd BP readings — systolic",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "notes": "Pre-averaged by CDC. Prefer over single-reading PMR4c1SY when available.",
+          "missing_values": [""]
+        },
+        "PMR3b": {
+          "label": "Radial pulse measurement (1982)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "missing_values": [""]
+        }
+      }
+    },
+    "behaviors_1982": {
+      "description": "Self-reported lifestyle behaviors at 1982 (used as covariates for the smoking-cessation → weight-gain analysis)",
+      "variables": {
+        "K4": {
+          "label": "Current weight of subject (self-reported)",
+          "type": "numeric",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "notes": "Self-report. Prefer measured PMR5b1 when available.",
+          "missing_values": ["", "888"]
+        },
+        "M1": {
+          "label": "Had at least 12 alcoholic beverages in 1 year",
+          "type": "categorical",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "values": {"1": "Yes", "2": "No"},
+          "missing_values": ["", "8"]
+        },
+        "M12": {
+          "label": "Self-rated drinking intensity (light/moderate/heavy)",
+          "type": "categorical",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "missing_values": ["", "8"]
+        },
+        "Q3": {
+          "label": "Follows a regular physical exercise program",
+          "type": "categorical",
+          "source": "NHEFS_1982_interview",
+          "wave": "f1_1982",
+          "roles": ["covariate"],
+          "values": {"1": "Yes", "2": "No"},
+          "notes": "Rough proxy for the Hernán 'active'/'exercise' covariates.",
+          "missing_values": ["", "8"]
+        }
+      }
+    }
+  },
+  "phase_1_research_question": {
+    "title": "Does smoking cessation between 1971-75 and 1982 cause weight gain by 1982?",
+    "reference": "Hernán & Robins, Causal Inference: What If, Chapter 12",
+    "expected_effect": "~3.4 kg average weight gain among quitters vs non-quitters (after adjusting for baseline confounders)",
+    "variable_roles": {
+      "exposure": "qsmk — derived from L1 (ever smoker) + L2a (smokes now in 1982). qsmk=1 if L1=1 AND L2a=2. Defined only for L1=1 (ever smokers).",
+      "outcome": "wt82_71 = wt82 - wt71. wt82 from PMR5b1/PMR5b2 (measured in 1982). wt71 from N1BM0260 (baseline kg).",
+      "confounders": [
+        "NEXAMAGE (age at baseline exam)",
+        "SEXSUBJ (sex)",
+        "REVRACE (race)",
+        "N1BM0112 (education, recoded)",
+        "N1BM0260 (baseline weight — the wt71 variable is both part of the outcome AND a confounder, per Hernán)",
+        "L9 (smoking intensity, cigarettes/day historical)",
+        "Q3 (exercise)",
+        "M12 (alcohol intensity)",
+        "N1AH0423 (baseline self-reported HBP)",
+        "N1AH0431 (baseline self-reported diabetes)"
+      ]
+    }
+  }
+}

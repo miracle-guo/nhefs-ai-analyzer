@@ -1,0 +1,16 @@
+{
+  "name": "nhefs-ai-analyzer",
+  "version": "0.5.0",
+  "description": "NHEFS AI Analyzer — causal inference analysis agent for the NHANES I Epidemiologic Follow-up Study (NHEFS). Use when: analyzing NHEFS data, causal inference research, observational study methods, treatment effect estimation, smoking cessation, weight change, longitudinal epidemiology, IPW, inverse probability weighting, g-formula, propensity score, standardization, Cox proportional hazards, survival analysis, NHANES I baseline linkage, public health data analysis, 分析NHEFS数据, 因果推断, 观察性研究, 处理效应估计, 纵向流行病学. Covers variable selection, data harmonization, missing data diagnostics, preprocessing, causal modeling, validation, and report generation.",
+  "author": {
+    "name": "Jacky Guo"
+  },
+  "keywords": [
+    "NHEFS", "NHANES I", "causal inference", "observational study",
+    "treatment effect", "IPW", "inverse probability weighting", "g-formula",
+    "propensity score", "standardization", "Cox PH", "survival analysis",
+    "smoking cessation", "weight change", "longitudinal data", "epidemiology",
+    "data harmonization", "missing data", "statsmodels", "pandas",
+    "Hernan", "Robins", "What If", "public health", "CDC data"
+  ]
+}

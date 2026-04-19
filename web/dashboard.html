@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NHEFS Analysis Dashboard</title>
+<style>
+:root {
+  --bg:#0f1117; --surface:#1a1d27; --surface2:#242836; --surface3:#2e3345;
+  --border:#2e3345; --border-light:#3a3f54;
+  --text:#e1e4ed; --muted:#8b90a0; --dim:#5a5f73;
+  --green:#34d399; --green-bg:rgba(52,211,153,.10); --green-glow:rgba(52,211,153,.25);
+  --accent:#6c8cff; --accent-bg:rgba(108,140,255,.10);
+  --yellow:#fbbf24; --yellow-bg:rgba(251,191,36,.10);
+  --red:#f87171; --red-bg:rgba(248,113,113,.10);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh;}
+
+/* Layout */
+.app{display:flex;height:100vh;flex-direction:column;}
+.topbar{padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.topbar-left{display:flex;align-items:center;gap:14px;}
+.topbar-left h1{font-size:14px;font-weight:600;}
+.topbar-rq{font-size:11px;color:var(--muted);max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.topbar-version{font-size:10px;color:var(--dim);font-weight:500;}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse-dot 2s infinite;}
+@keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* Golden path bar */
+.gp-bar{padding:8px 20px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:6px;font-size:10px;flex-shrink:0;flex-wrap:wrap;}
+.gp-label{color:var(--yellow);font-weight:600;margin-right:4px;}
+.gp-step{padding:2px 8px;border-radius:4px;font-weight:500;cursor:pointer;transition:.15s;}
+.gp-step:hover{filter:brightness(1.3);}
+.gp-step.done{background:var(--green-bg);color:var(--green);}
+.gp-step.running{background:var(--yellow-bg);color:var(--yellow);}
+.gp-step.pending{background:var(--surface2);color:var(--dim);}
+.gp-arrow{color:var(--dim);font-size:9px;}
+.gp-progress{margin-left:auto;color:var(--muted);font-weight:500;}
+
+/* Main area */
+.main-area{display:flex;flex:1;overflow:hidden;}
+.mindmap-wrap{flex:1;overflow:auto;padding:30px 40px;position:relative;}
+.connections-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;}
+.connections-svg line{stroke-width:1.5;opacity:.5;}
+.connections-svg line.golden{stroke:var(--green);opacity:.7;}
+.connections-svg line.running{stroke:var(--yellow);opacity:.6;}
+.connections-svg line.default{stroke:var(--border-light);}
+.detail-panel{width:0;overflow:hidden;border-left:1px solid var(--border);background:var(--surface);transition:width .25s ease;flex-shrink:0;}
+.detail-panel.open{width:420px;}
+.detail-inner{width:420px;padding:20px;overflow-y:auto;height:100%;}
+
+/* Mindmap phases */
+.phase-group{margin-bottom:28px;}
+.phase-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.phase-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;}
+.phase-line{flex:1;height:1px;background:var(--border);}
+.phase-badge{font-size:9px;padding:2px 8px;border-radius:10px;font-weight:600;}
+
+/* Task row */
+.task-row{margin-bottom:12px;margin-left:16px;}
+.task-label{font-size:10px;color:var(--dim);margin-bottom:6px;font-weight:500;}
+
+/* Nodes */
+.step-nodes{display:flex;gap:10px;flex-wrap:wrap;}
+.node{
+  position:relative;display:inline-flex;align-items:center;gap:8px;
+  padding:10px 16px;border-radius:10px;cursor:pointer;
+  border:1.5px solid var(--border);background:var(--surface2);
+  transition:all .2s;min-width:180px;max-width:320px;z-index:1;
+}
+.node:hover{border-color:var(--border-light);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.3);}
+.node.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+
+/* Node status variants */
+.node.golden{border-color:var(--green);background:var(--green-bg);box-shadow:0 0 12px var(--green-glow);}
+.node.running{border-color:var(--yellow);background:var(--yellow-bg);animation:pulse-border 2s infinite;}
+.node.abandoned{border-style:dashed;border-color:var(--red);background:var(--red-bg);opacity:.6;}
+.node.planned{opacity:.5;}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 4px rgba(251,191,36,.2);}50%{box-shadow:0 0 12px rgba(251,191,36,.4);}}
+
+.node-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.node-dot.golden{background:var(--green);}
+.node-dot.running{background:var(--yellow);}
+.node-dot.planned{background:var(--dim);}
+.node-dot.abandoned{background:var(--red);}
+.node-dot.exploring{background:var(--accent);}
+
+.node-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.node-label{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.node-sub{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.node-badge{position:absolute;top:-6px;right:-6px;font-size:8px;padding:1px 5px;border-radius:6px;font-weight:700;}
+.node-badge.star{background:var(--green-bg);color:var(--green);}
+
+/* Detail panel */
+.detail-close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px 8px;border-radius:4px;}
+.detail-close:hover{background:var(--surface2);color:var(--text);}
+.detail-header{margin-bottom:16px;position:relative;padding-right:30px;}
+.detail-header h3{font-size:14px;font-weight:600;margin-bottom:4px;}
+.detail-header .detail-id{font-size:10px;color:var(--dim);font-family:monospace;}
+.detail-status{display:inline-flex;padding:2px 8px;border-radius:8px;font-size:9px;font-weight:600;margin-top:6px;}
+.detail-status.golden{background:var(--green-bg);color:var(--green);}
+.detail-status.running{background:var(--yellow-bg);color:var(--yellow);}
+.detail-status.planned{background:var(--surface3);color:var(--dim);}
+.detail-status.abandoned{background:var(--red-bg);color:var(--red);}
+.detail-status.exploring{background:var(--accent-bg);color:var(--accent);}
+
+.detail-section{margin-bottom:16px;}
+.detail-section h4{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin-bottom:8px;}
+.detail-section p,.detail-section .detail-text{font-size:12px;color:var(--muted);line-height:1.6;}
+.detail-kv{display:flex;flex-direction:column;gap:0;}
+.detail-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;}
+.detail-row span:first-child{color:var(--dim);}
+.detail-row span:last-child{color:var(--text);font-weight:500;}
+.detail-note{padding:10px 12px;background:var(--surface2);border-radius:6px;font-size:11px;color:var(--muted);line-height:1.6;font-style:italic;border-left:3px solid var(--accent);}
+
+/* Artifacts */
+.artifact-group{margin-bottom:12px;}
+.artifact-group-title{font-size:9px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+.artifact-card{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;margin-bottom:4px;cursor:pointer;border:1px solid transparent;transition:.15s;}
+.artifact-card:hover{border-color:var(--border-light);background:var(--surface3);}
+.artifact-icon{font-size:14px;flex-shrink:0;width:24px;text-align:center;}
+.artifact-info{flex:1;min-width:0;}
+.artifact-title{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.artifact-path{font-size:9px;color:var(--dim);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.artifact-missing{opacity:.4;}
+
+/* Code viewer */
+.code-viewer{margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-height:300px;overflow:auto;padding:12px;font-size:11px;font-family:'JetBrains Mono','Fira Code',monospace;line-height:1.5;color:var(--muted);white-space:pre-wrap;word-break:break-all;display:none;}
+.code-viewer.open{display:block;}
+
+/* Image viewer */
+.image-viewer{margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;display:none;text-align:center;}
+.image-viewer.open{display:block;}
+.image-viewer img{max-width:100%;border-radius:4px;}
+
+/* Timeline tab */
+.timeline{padding:20px 40px;overflow-y:auto;height:100%;}
+.timeline-event{display:flex;gap:12px;margin-bottom:12px;align-items:flex-start;}
+.timeline-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+.timeline-content{flex:1;}
+.timeline-summary{font-size:12px;color:var(--muted);line-height:1.5;}
+.timeline-meta{font-size:10px;color:var(--dim);margin-top:2px;}
+.timeline-version{font-size:9px;padding:1px 6px;border-radius:4px;background:var(--surface2);color:var(--dim);font-weight:500;}
+
+/* Tabs */
+.tab-bar{display:flex;gap:2px;margin-left:20px;}
+.tab{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;color:var(--muted);border:1px solid transparent;transition:.15s;}
+.tab:hover{color:var(--text);background:var(--surface2);}
+.tab.active{color:var(--accent);background:var(--accent-bg);border-color:rgba(108,140,255,.2);}
+.tab-content{display:none;flex:1;overflow:hidden;}
+.tab-content.active{display:flex;}
+
+/* Empty state */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--dim);gap:8px;}
+.empty-state .icon{font-size:32px;opacity:.3;}
+.empty-state p{font-size:12px;}
+
+/* No-plan empty state */
+.no-plan-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;text-align:center;padding:40px;}
+.no-plan-icon{font-size:48px;opacity:.4;}
+.no-plan-title{font-size:18px;font-weight:600;color:var(--text);opacity:.8;}
+.no-plan-desc{font-size:13px;color:var(--muted);line-height:1.7;max-width:440px;}
+.no-plan-poll{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim);margin-top:8px;}
+.no-plan-poll .spinner{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:np-spin 1s linear infinite;}
+@keyframes np-spin{to{transform:rotate(360deg);}}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--border-light);}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>NHEFS Analysis</h1>
+      <span class="topbar-rq" id="rq"></span>
+    </div>
+    <div class="topbar-right">
+      <div class="tab-bar">
+        <div class="tab active" data-tab="mindmap">Mindmap</div>
+        <div class="tab" data-tab="timeline">Timeline</div>
+      </div>
+      <span class="topbar-version" id="version-label"></span>
+      <div class="live-dot" title="Live — polling every 2s"></div>
+    </div>
+  </div>
+
+  <!-- Golden path bar -->
+  <div class="gp-bar" id="gp-bar"></div>
+
+  <!-- Mindmap tab -->
+  <div class="tab-content active" data-tab="mindmap">
+    <div class="main-area">
+      <div class="mindmap-wrap" id="mindmap"></div>
+      <div class="detail-panel" id="detail-panel">
+        <div class="detail-inner" id="detail-inner"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline tab -->
+  <div class="tab-content" data-tab="timeline">
+    <div class="timeline" id="timeline"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let plan = null;
+let signal = null;
+let selectedStepId = null;
+let allSteps = [];
+let planMissing = true;
+
+// ── Data fetching ──
+const BASE = '../workspace';
+
+async function fetchJSON(url) {
+  const r = await fetch(url + '?t=' + Date.now());
+  if (!r.ok) return null;
+  return r.json();
+}
+
+async function fetchText(url) {
+  const r = await fetch(url + '?t=' + Date.now());
+  if (!r.ok) return null;
+  return r.text();
+}
+
+async function loadPlan() {
+  const p = await fetchJSON(`${BASE}/analysis_plan.json`);
+  if (!p) {
+    planMissing = true;
+    plan = null;
+    allSteps = [];
+    renderEmptyState();
+    return;
+  }
+  planMissing = false;
+  plan = p;
+  allSteps = [];
+  (plan.phases || []).forEach(ph => (ph.tasks || []).forEach(t => (t.steps || []).forEach(s => allSteps.push(s))));
+  render();
+}
+
+async function pollSignal() {
+  const s = await fetchJSON(`${BASE}/_update_signal.json`);
+  if (s && (!signal || s.plan_version !== signal.plan_version || s.log_event_count !== signal.log_event_count)) {
+    signal = s;
+    await loadPlan();
+  } else if (planMissing) {
+    // No signal file yet either — try loading plan directly in case it appeared
+    await loadPlan();
+  }
+}
+
+function renderEmptyState() {
+  // Topbar: placeholder text
+  document.getElementById('rq').textContent = '';
+  document.getElementById('version-label').textContent = '';
+  // Hide golden path bar
+  document.getElementById('gp-bar').innerHTML = '';
+  // Mindmap area: no-plan state
+  document.getElementById('mindmap').innerHTML = `
+    <div class="no-plan-state">
+      <div class="no-plan-icon">📋</div>
+      <div class="no-plan-title">No Analysis Plan Yet</div>
+      <div class="no-plan-desc">
+        The dashboard is waiting for an analysis plan to appear.<br><br>
+        Please confirm the Claude Code agent is running and has started processing your research question.
+        Once the agent generates a plan, it will appear here automatically.
+      </div>
+      <div class="no-plan-poll">
+        <div class="spinner"></div>
+        Checking for updates…
+      </div>
+    </div>`;
+  // Timeline: also empty
+  document.getElementById('timeline').innerHTML = `
+    <div class="no-plan-state">
+      <div class="no-plan-icon">⏳</div>
+      <div class="no-plan-title">Waiting for Events</div>
+      <div class="no-plan-desc">Events will appear here once the analysis pipeline starts running.</div>
+      <div class="no-plan-poll">
+        <div class="spinner"></div>
+        Checking for updates…
+      </div>
+    </div>`;
+  // Close detail panel if open
+  document.getElementById('detail-panel').classList.remove('open');
+  selectedStepId = null;
+}
+
+// ── Status helpers ──
+function getVisualStatus(step) {
+  const onGP = plan.golden_path && plan.golden_path.includes(step.id);
+  if (step.status === 'proposed') return 'planned';
+  if (step.status === 'executing' || step.status === 'awaiting_confirmation') return 'running';
+  if (step.status === 'committed' && onGP) return 'golden';
+  if (step.status === 'committed' && !onGP) return 'exploring';
+  if (step.status === 'discarded' || step.status === 'superseded') return 'abandoned';
+  return 'planned';
+}
+
+function statusLabel(vs) {
+  return {golden:'Committed ★',running:'Running',planned:'Planned',exploring:'Exploring',abandoned:'Abandoned'}[vs]||vs;
+}
+
+function phaseStatusBadge(status) {
+  const m = {committed:'golden',executing:'running',proposed:'planned',abandoned:'abandoned'};
+  return m[status] || 'planned';
+}
+
+// ── Artifact helpers ──
+const ARTIFACT_ICONS = {
+  code:'📄',figure:'🖼️',table:'📊',report:'📋',dataset:'💾',log:'📝',notebook:'📓',config:'⚙️',metadata:'⚙️'
+};
+const ARTIFACT_ORDER = ['figure','code','table','report','dataset','log','notebook','config','metadata'];
+
+function groupArtifacts(artifacts) {
+  const groups = {};
+  (artifacts || []).forEach(a => {
+    const t = a.type || 'config';
+    if (!groups[t]) groups[t] = [];
+    groups[t].push(a);
+  });
+  return ARTIFACT_ORDER.filter(t => groups[t]).map(t => ({type: t, items: groups[t]}));
+}
+
+// ── Render ──
+function render() {
+  if (!plan) return;
+  document.getElementById('rq').textContent = plan.research_question || '';
+  document.getElementById('version-label').textContent = `v${plan.version || 1}`;
+  renderGoldenPathBar();
+  renderMindmap();
+  renderTimeline();
+  if (selectedStepId) renderDetail(selectedStepId);
+}
+
+function renderGoldenPathBar() {
+  const bar = document.getElementById('gp-bar');
+  const gp = plan.golden_path || [];
+  const prog = plan.golden_path_progress || {};
+  let html = '<span class="gp-label">Golden Path</span>';
+  // Show all steps in order, mark golden ones
+  const allInOrder = [];
+  (plan.phases||[]).forEach(ph => (ph.tasks||[]).forEach(t => (t.steps||[]).forEach(s => allInOrder.push(s))));
+  allInOrder.forEach((s, i) => {
+    const vs = getVisualStatus(s);
+    const cls = vs === 'golden' ? 'done' : vs === 'running' ? 'running' : 'pending';
+    html += `<span class="gp-step ${cls}" onclick="selectStep('${s.id}')">${s.display_label || s.id}</span>`;
+    if (i < allInOrder.length - 1) html += '<span class="gp-arrow">→</span>';
+  });
+  if (prog.total) {
+    html += `<span class="gp-progress">${prog.committed||0}/${prog.total} committed</span>`;
+  }
+  bar.innerHTML = html;
+}
+
+function renderMindmap() {
+  const mm = document.getElementById('mindmap');
+  let html = '<svg class="connections-svg" id="connections-svg"></svg>';
+  (plan.phases || []).forEach(ph => {
+    const pbs = phaseStatusBadge(ph.status);
+    html += `<div class="phase-group">`;
+    html += `<div class="phase-header">
+      <span class="phase-title">${esc(ph.title)}</span>
+      <div class="phase-line"></div>
+      <span class="phase-badge detail-status ${pbs}">${ph.status}</span>
+    </div>`;
+    (ph.tasks || []).forEach(t => {
+      html += `<div class="task-row">`;
+      html += `<div class="task-label">${esc(t.title)} <span style="color:var(--dim);font-size:9px;">(${t.module_id || ''})</span></div>`;
+      html += `<div class="step-nodes">`;
+      (t.steps || []).forEach(s => {
+        const vs = getVisualStatus(s);
+        const sel = s.id === selectedStepId ? ' selected' : '';
+        const onGP = plan.golden_path && plan.golden_path.includes(s.id);
+        html += `<div class="node ${vs}${sel}" data-step-id="${s.id}" onclick="selectStep('${s.id}')">
+          <div class="node-dot ${vs}"></div>
+          <div class="node-text">
+            <div class="node-label">${esc(s.display_label || s.type || s.id)}</div>
+            ${s.display_sub ? `<div class="node-sub">${esc(s.display_sub)}</div>` : ''}
+          </div>
+          ${onGP ? '<div class="node-badge star">★</div>' : ''}
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+  });
+  mm.innerHTML = html;
+  // Draw connection lines after DOM is ready
+  requestAnimationFrame(() => drawConnections());
+}
+
+function drawConnections() {
+  const svg = document.getElementById('connections-svg');
+  if (!svg || !plan) return;
+  const mm = document.getElementById('mindmap');
+  const mmRect = mm.getBoundingClientRect();
+  const scrollLeft = mm.scrollLeft;
+  const scrollTop = mm.scrollTop;
+
+  // Set SVG size to cover the full scrollable area
+  svg.setAttribute('width', mm.scrollWidth);
+  svg.setAttribute('height', mm.scrollHeight);
+  svg.style.width = mm.scrollWidth + 'px';
+  svg.style.height = mm.scrollHeight + 'px';
+
+  let lines = '';
+
+  // Build ordered list of tasks with their last committed (or first) step
+  // Connect: last step of task N → first step of task N+1 (across all phases)
+  const taskOrder = [];
+  (plan.phases || []).forEach(ph => {
+    (ph.tasks || []).forEach(t => {
+      if (t.steps && t.steps.length > 0) {
+        taskOrder.push(t);
+      }
+    });
+  });
+
+  // 1. Draw lines between steps within the same task (siblings / branches)
+  taskOrder.forEach(t => {
+    const steps = t.steps || [];
+    if (steps.length <= 1) return;
+    // Connect each step to the next within the same task
+    for (let i = 0; i < steps.length - 1; i++) {
+      const fromEl = mm.querySelector(`[data-step-id="${steps[i].id}"]`);
+      const toEl = mm.querySelector(`[data-step-id="${steps[i+1].id}"]`);
+      if (fromEl && toEl) {
+        const line = makeConnectionLine(fromEl, toEl, mmRect, scrollLeft, scrollTop, steps[i], steps[i+1]);
+        lines += line;
+      }
+    }
+  });
+
+  // 2. Draw lines between tasks: last step of task N → first step of task N+1
+  for (let i = 0; i < taskOrder.length - 1; i++) {
+    const fromSteps = taskOrder[i].steps;
+    const toSteps = taskOrder[i+1].steps;
+    // Use the golden-path step if available, otherwise the last/first step
+    const fromStep = findGoldenOrLast(fromSteps);
+    const toStep = toSteps[0];
+    const fromEl = mm.querySelector(`[data-step-id="${fromStep.id}"]`);
+    const toEl = mm.querySelector(`[data-step-id="${toStep.id}"]`);
+    if (fromEl && toEl) {
+      const line = makeConnectionLine(fromEl, toEl, mmRect, scrollLeft, scrollTop, fromStep, toStep);
+      lines += line;
+    }
+  }
+
+  svg.innerHTML = lines;
+}
+
+function findGoldenOrLast(steps) {
+  if (plan.golden_path) {
+    const gp = steps.find(s => plan.golden_path.includes(s.id));
+    if (gp) return gp;
+  }
+  // Prefer committed step, then last step
+  const committed = steps.find(s => s.status === 'committed');
+  return committed || steps[steps.length - 1];
+}
+
+function makeConnectionLine(fromEl, toEl, mmRect, scrollLeft, scrollTop, fromStep, toStep) {
+  const fromR = fromEl.getBoundingClientRect();
+  const toR = toEl.getBoundingClientRect();
+
+  // Calculate positions relative to the mindmap container's scroll area
+  const x1 = fromR.right - mmRect.left + scrollLeft;
+  const y1 = fromR.top + fromR.height / 2 - mmRect.top + scrollTop;
+  const x2 = toR.left - mmRect.left + scrollLeft;
+  const y2 = toR.top + toR.height / 2 - mmRect.top + scrollTop;
+
+  // If the target is below (cross-task), connect from bottom-center to top-center
+  const sameRow = Math.abs(fromR.top - toR.top) < fromR.height;
+  let fx, fy, tx, ty;
+  if (sameRow) {
+    // Horizontal connection: right edge → left edge
+    fx = x1; fy = y1; tx = x2; ty = y2;
+  } else {
+    // Vertical connection: bottom-center → top-center
+    fx = fromR.left + fromR.width / 2 - mmRect.left + scrollLeft;
+    fy = fromR.bottom - mmRect.top + scrollTop;
+    tx = toR.left + toR.width / 2 - mmRect.left + scrollLeft;
+    ty = toR.top - mmRect.top + scrollTop;
+  }
+
+  // Determine line class based on status
+  const fromVs = getVisualStatus(fromStep);
+  const toVs = getVisualStatus(toStep);
+  let cls = 'default';
+  if (fromVs === 'golden' && toVs === 'golden') cls = 'golden';
+  else if (fromVs === 'golden' && toVs === 'running') cls = 'running';
+  else if (fromVs === 'running') cls = 'running';
+
+  return `<line x1="${fx}" y1="${fy}" x2="${tx}" y2="${ty}" class="${cls}"/>`;
+}
+
+// Redraw connections on scroll or resize
+const mmEl = document.querySelector('.mindmap-wrap');
+if (mmEl) {
+  mmEl.addEventListener('scroll', () => { if (!planMissing) requestAnimationFrame(drawConnections); });
+  window.addEventListener('resize', () => { if (!planMissing) requestAnimationFrame(drawConnections); });
+}
+
+function renderTimeline() {
+  const tl = document.getElementById('timeline');
+  const versions = plan.plan_versions || [];
+  if (!versions.length) {
+    tl.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No events yet</p></div>';
+    return;
+  }
+  let html = '';
+  versions.slice().reverse().forEach(v => {
+    const dotColor = v.trigger === 'initial_generation' ? 'var(--accent)' :
+                     v.trigger?.startsWith('commit') ? 'var(--green)' : 'var(--yellow)';
+    html += `<div class="timeline-event">
+      <div class="timeline-dot" style="background:${dotColor}"></div>
+      <div class="timeline-content">
+        <div class="timeline-summary">${esc(v.change_summary || v.trigger || '')}</div>
+        <div class="timeline-meta">
+          <span class="timeline-version">v${v.version}</span>
+          ${v.timestamp ? ' · ' + new Date(v.timestamp).toLocaleString() : ''}
+        </div>
+      </div>
+    </div>`;
+  });
+  tl.innerHTML = html;
+}
+
+// ── Detail panel ──
+function selectStep(stepId) {
+  selectedStepId = stepId;
+  renderMindmap(); // re-render to update selection highlight
+  renderDetail(stepId);
+  document.getElementById('detail-panel').classList.add('open');
+  setTimeout(drawConnections, 300); // redraw after panel transition
+}
+
+function closeDetail() {
+  selectedStepId = null;
+  document.getElementById('detail-panel').classList.remove('open');
+  renderMindmap();
+  setTimeout(drawConnections, 300); // redraw after panel transition
+}
+
+function renderDetail(stepId) {
+  const step = allSteps.find(s => s.id === stepId);
+  if (!step) return;
+  const vs = getVisualStatus(step);
+  const panel = document.getElementById('detail-inner');
+
+  let html = `<div class="detail-header" style="position:relative;">
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+    <h3>${esc(step.display_label || step.type || step.id)}</h3>
+    <div class="detail-id">${step.id} · ${step.type || ''}</div>
+    <div class="detail-status ${vs}">${statusLabel(vs)}</div>
+  </div>`;
+
+  // Task description (what this step does)
+  if (step.task_description) {
+    html += `<div class="detail-section"><h4>What this step does</h4><p>${esc(step.task_description)}</p></div>`;
+  }
+
+  // Output summary
+  if (step.output_summary) {
+    html += `<div class="detail-section"><h4>Output Summary</h4><p>${esc(step.output_summary)}</p></div>`;
+  }
+
+  // Key result
+  if (step.key_result && Object.keys(step.key_result).length) {
+    html += `<div class="detail-section"><h4>Key Results</h4><div class="detail-kv">`;
+    Object.entries(step.key_result).forEach(([k,v]) => {
+      html += `<div class="detail-row"><span>${esc(k)}</span><span>${esc(String(v))}</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Config
+  if (step.config && Object.keys(step.config).length) {
+    html += `<div class="detail-section"><h4>Configuration</h4><div class="detail-kv">`;
+    Object.entries(step.config).forEach(([k,v]) => {
+      const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      html += `<div class="detail-row"><span>${esc(k)}</span><span>${esc(val)}</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Validation
+  if (step.validation_summary) {
+    const vs2 = step.validation_summary;
+    html += `<div class="detail-section"><h4>Validation</h4><div class="detail-kv">`;
+    if (vs2.pass != null) html += `<div class="detail-row"><span>Pass</span><span style="color:var(--green)">${vs2.pass}</span></div>`;
+    if (vs2.warn != null) html += `<div class="detail-row"><span>Warn</span><span style="color:var(--yellow)">${vs2.warn}</span></div>`;
+    if (vs2.fail != null) html += `<div class="detail-row"><span>Fail</span><span style="color:var(--red)">${vs2.fail}</span></div>`;
+    html += `</div></div>`;
+  }
+
+  // User note
+  if (step.user_note) {
+    html += `<div class="detail-section"><h4>Researcher Note</h4><div class="detail-note">${esc(step.user_note)}</div></div>`;
+  }
+
+  // Timestamps
+  const ts = [];
+  if (step.created_at) ts.push(['Created', step.created_at]);
+  if (step.started_at) ts.push(['Started', step.started_at]);
+  if (step.committed_at) ts.push(['Committed', step.committed_at]);
+  if (ts.length) {
+    html += `<div class="detail-section"><h4>Timestamps</h4><div class="detail-kv">`;
+    ts.forEach(([k,v]) => {
+      html += `<div class="detail-row"><span>${k}</span><span>${new Date(v).toLocaleString()}</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Artifacts
+  const groups = groupArtifacts(step.artifacts);
+  if (groups.length) {
+    html += `<div class="detail-section"><h4>Artifacts</h4>`;
+    groups.forEach(g => {
+      html += `<div class="artifact-group"><div class="artifact-group-title">${g.type} (${g.items.length})</div>`;
+      g.items.forEach((a, i) => {
+        const aid = `art-${step.id}-${g.type}-${i}`;
+        const icon = ARTIFACT_ICONS[a.type] || '📄';
+        const isCode = a.type === 'code' || (a.path && /\.(py|do|r|sql|js)$/i.test(a.path));
+        const isImage = a.type === 'figure' || (a.path && /\.(png|jpg|jpeg|svg|gif)$/i.test(a.path));
+        const isLog = a.type === 'log' || (a.path && /\.(log|txt)$/i.test(a.path));
+        const clickable = isCode || isImage || isLog;
+        html += `<div class="artifact-card" ${clickable ? `onclick="toggleArtifact('${aid}','${a.path}')"` : ''}>
+          <div class="artifact-icon">${icon}</div>
+          <div class="artifact-info">
+            <div class="artifact-title">${esc(a.label || a.title || a.path?.split('/').pop() || 'Artifact')}</div>
+            <div class="artifact-path">${esc(a.path || '')}</div>
+          </div>
+        </div>`;
+        if (isCode || isLog) {
+          html += `<div class="code-viewer" id="${aid}"></div>`;
+        } else if (isImage) {
+          html += `<div class="image-viewer" id="${aid}"></div>`;
+        }
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+  } else if (step.status !== 'proposed') {
+    html += `<div class="detail-section"><h4>Artifacts</h4><p style="font-size:11px;color:var(--dim);">No artifacts registered</p></div>`;
+  }
+
+  panel.innerHTML = html;
+}
+
+// ── Artifact viewer ──
+async function toggleArtifact(aid, path) {
+  const el = document.getElementById(aid);
+  if (!el) return;
+  if (el.classList.contains('open')) {
+    el.classList.remove('open');
+    return;
+  }
+
+  const isImage = /\.(png|jpg|jpeg|svg|gif)$/i.test(path);
+  const fullPath = '../' + path;
+
+  if (isImage) {
+    el.innerHTML = `<img src="${fullPath}" alt="artifact" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--dim);font-size:11px;padding:8px\\'>Image not found</p>'" />`;
+    el.classList.add('open');
+  } else {
+    const content = await fetchText(fullPath);
+    if (content !== null) {
+      el.textContent = content;
+      el.classList.add('open');
+    } else {
+      el.innerHTML = '<span style="color:var(--red);font-size:11px;">File not found on disk</span>';
+      el.classList.add('open');
+    }
+  }
+}
+
+// ── Tabs ──
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelector(`.tab-content[data-tab="${tab.dataset.tab}"]`).classList.add('active');
+  });
+});
+
+// ── Utilities ──
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──
+(async () => {
+  await loadPlan();
+  setInterval(pollSignal, 2000);
+})();
+</script>
+</body>
+</html>

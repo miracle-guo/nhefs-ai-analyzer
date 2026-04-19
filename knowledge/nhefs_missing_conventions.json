@@ -1,0 +1,94 @@
+{
+  "_description": "NHEFS + NHANES I missing-value conventions. Raw CDC public-use data uses positional blanks and numeric sentinels, NOT the RAND HRS extended missing codes (.a .d .e .m .r .w etc.). Sentinel values vary by variable and MUST be resolved per variable using the codebook PDFs — this file documents the dominant conventions so M3 (missing diagnostician) can apply them as defaults and flag anything that doesn't fit.",
+  "_general_rule": "After loading with utils.nhefs_loader / utils.nhanes_i_loader (which returns str columns), call .str.strip() on every cell. A stripped cell that is the empty string '' is 'not asked' or 'inapplicable' — convert to NaN. Then apply per-variable sentinel rules based on the variable's width.",
+  "blank_convention": {
+    "meaning": "Field was not asked, not applicable, skipped due to flow logic, or left blank due to data entry",
+    "value": "all-space string (e.g., '   ' for width 3)",
+    "detection": "df[col].str.strip() == ''",
+    "action": "Convert to NaN before analysis. This is structural missingness — do not impute without understanding why the field was blank (check codebook skip pattern)."
+  },
+  "numeric_sentinels": {
+    "_description": "Numeric sentinels follow NCHS convention for mid-1970s surveys. The specific value depends on field width.",
+    "by_width": {
+      "1": {
+        "don't_know": "8",
+        "refused_or_not_ascertained": "9",
+        "notes": "1-digit coded fields use 8=DK, 9=refused/NA. Some fields use 0 for 'no' and leave 1,2,3... for 'yes' variants."
+      },
+      "2": {
+        "don't_know": "88",
+        "refused_or_not_ascertained": "99",
+        "notes": "2-digit fields. Common for counts (cigarettes/day, years smoked). Value 88 and 99 must be excluded before numeric analysis."
+      },
+      "3": {
+        "don't_know": "888",
+        "refused_or_not_ascertained": "999",
+        "notes": "3-digit fields such as weight in kg (width 3 + 2 decimal), systolic BP (width 3)."
+      },
+      "4": {
+        "don't_know": "8888",
+        "refused_or_not_ascertained": "9999",
+        "notes": "4-digit fields such as year-of-birth (NDOBYR) or weight in pounds * 100."
+      }
+    }
+  },
+  "structural_missingness": {
+    "_description": "Some variables are missing for well-defined structural reasons, not survey non-response. These patterns are predictable and should be handled by design rather than imputation.",
+    "patterns": [
+      {
+        "description": "Decedents have no interview data in waves after they died",
+        "affected_files": ["N82int.txt", "n86int.txt", "n87int.txt", "N92int.txt"],
+        "detection": "CVITALST or VTLST<year> in n92vitl.txt indicates death before the wave",
+        "action": "Left-join against vital file; treat absence as structural (do not impute)."
+      },
+      {
+        "description": "Cause-of-death variables only populated for decedents",
+        "affected_file": "N92mort.txt",
+        "detection": "Subject does not appear in mort.txt → is a survivor → cause-of-death is NaN (correct)",
+        "action": "Left-join mort onto vital. NaN cause = alive as of last follow-up."
+      },
+      {
+        "description": "DU4091 (cardio/respiratory supplement) only administered to a subsample",
+        "affected_file": "NHANES_I_1971_75/data/DU4091.txt",
+        "row_count_note": "6,913 of 23,808 examined persons (~30%); ~half of the NHEFS cohort of 14,407",
+        "action": "Variables from DU4091 (baseline smoking at N1GM0378/0379, etc.) are structurally NaN for non-supplement subjects. Prefer alternative sources (1982 NHEFS interview smoking recall) where available."
+      },
+      {
+        "description": "DU4081 (adult medical history) limited to ages 12-74",
+        "affected_file": "NHANES_I_1971_75/data/DU4081.txt",
+        "row_count_note": "18,836 of 23,808 examined persons",
+        "action": "All NHEFS cohort subjects are within 25-74 at exam, so this is not a cohort restriction for NHEFS analyses. Ages <12 in NHANES I are covered separately by DU4067 (children's medical history) — not used in NHEFS."
+      },
+      {
+        "description": "1986 NHEFS wave restricted to subjects 55-74 at baseline",
+        "affected_file": "NHEFS_CDC_PublicUse/02_1986/n86int.txt",
+        "row_count_note": "~3,980 eligible",
+        "action": "Structural missingness for subjects <55 at baseline. Not used in Phase 1."
+      },
+      {
+        "description": "Physical measurements only in 1982-84 (in-person interview)",
+        "affected_files": ["n86int.txt", "n87int.txt", "N92int.txt"],
+        "action": "Weight, pulse, and BP measured in 1982-84 (N82int.txt) only. Follow-up waves are phone-only. If longitudinal weight analyses are needed beyond 1982, self-reported values in later interviews must be used (tend to underreport)."
+      }
+    ]
+  },
+  "per_variable_exceptions": {
+    "_description": "Variables whose sentinel codes differ from the width-based defaults. Populated as they are encountered during M1.2 registry curation. Any value in this dict overrides the numeric_sentinels defaults.",
+    "_example_entry": {
+      "N1BM0260": {
+        "meaning": "Weight in kilograms (width 5, XXX.XX format)",
+        "don't_know": null,
+        "refused": null,
+        "notes": "Physically measured — no DK/refused. Missing = blank string (not examined)."
+      }
+    }
+  },
+  "recommended_m3_workflow": [
+    "1. Load file with loader (returns dtype=str).",
+    "2. For every column: df[col] = df[col].str.strip(); df[col] = df[col].replace('', pd.NA)",
+    "3. For numeric variables: consult variable_registry.json 'missing_values' field to get per-variable sentinels, then df[col] = df[col].replace(sentinels, pd.NA)",
+    "4. Fall back to width-based defaults for any variable without explicit sentinels in the registry.",
+    "5. pd.to_numeric(df[col], errors='coerce') to convert after sentinels are NaN.",
+    "6. Run M7 validation to surface variables with unexpectedly high missing rates — those need codebook review."
+  ]
+}
